@@ -60,6 +60,24 @@ class VSBPP:
         self.__pieces = pieces
         self.__bins = bins
 
+    def check_valid(self, solution: list[int]):
+        # gera um dict com a capacidade atual de cada bin
+        bins_capaity = { idx: self.__bins[tp][CAPACITY] for idx, tp in enumerate(solution[self.__NUM_PIECES:])}
+        for i in range(self.__NUM_PIECES):
+            idx_bin = solution[i]
+            piece_weight = self.__pieces[i] # busca o peso da peça
+            if piece_weight > bins_capaity[idx_bin]: # verifica se o peso da peça cabe no bin
+                return False
+            bins_capaity[idx_bin] -= piece_weight # preenche o bin com o peso da pesa
+        return True
+    
+    def cost(self, solution: list[int]):
+        total_cost = 0
+
+        for i in range(self.__NUM_PIECES):
+            idx_bin = solution[i]
+            total_cost += self.__bins[idx_bin][COST]
+
 for ins in hs_instances:
     env = VSBPP(ins)
     
