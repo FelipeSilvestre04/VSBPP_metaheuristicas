@@ -76,7 +76,8 @@ class VSBPP:
 
         for i in range(self.__NUM_PIECES):
             idx_bin = solution[i]
-            total_cost += self.__bins[idx_bin][COST]
+            tp_bin = solution[self.__NUM_PIECES + idx_bin]
+            total_cost += self.__bins[tp_bin][COST]
 
 for ins in hs_instances:
     env = VSBPP(ins)
