@@ -19,7 +19,7 @@ def ler_instance(path):
                 n_bins = int(linha[1]) # número de bins
             elif line_count == 1:
                 for i in range(n_bins):
-                    bins.append((int(linha[2*i]), int(linha[2*i + 1]))) # bins = [(valor, capacidade),                    
+                    bins.append((int(linha[2*i]), int(linha[2*i + 1]))) # bins = [(capacidade, valor), ..]                  
                 if len(bins) != n_bins:
                     raise ValueError("Número de bins lido não confere com o número de bins esperado.")
                 
