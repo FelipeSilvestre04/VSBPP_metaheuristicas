@@ -175,12 +175,15 @@ class Solvers():
         best_cost = float('inf')
         for _ in range(max_iter):
             random_keys = self.random_keys()
+            ini_solution = self.env.decoder(random_keys)
+            ini_cost = self.env.cost(ini_solution)
+            
             keys = self.LocSearch(random_keys,x)
 
             solution = self.env.decoder(keys)
             cost = self.env.cost(solution)
             
-            print(f"Iteração {_ + 1}, Custo: {cost}")
+            print(f"Iteração {_ + 1}, Custo Inicial: {ini_cost}, Custo Final: {cost}")
             
             if cost < best_cost:
                 best_cost = cost
