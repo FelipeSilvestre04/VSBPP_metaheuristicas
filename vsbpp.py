@@ -86,15 +86,19 @@ class VSBPP:
 
         for idx in solution[0:self.__NUM_PIECES]: 
             
-            capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual 
+                        
+            if capacidade_atual + self.__pieces[idx] <  capacidade_bin: #Se a peça cabe no bin atual, adiciona ela ao bin atual
+                
+                capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual 
             
-            if capacidade_atual <  capacidade_bin:
-                continue
-            else:
+            else: # Se não cabe, fecha o bin atual e abre um novo bin
+
                 idx_bin_atual += 1
-                capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] # pega a capacidade do bin atual
+                capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] # pega a capacidade do novo bin atual
                 capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
-                total_cost += self.__bins[solution[idx_bin_atual]][COST]     
+                capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual
+                
+                total_cost += self.__bins[solution[idx_bin_atual]][COST]    #Adiciona o custo do novo bin aberto 
 
 
            
@@ -173,10 +177,13 @@ class Solvers():
     def MultiStart(self,max_iter,x): # Multi Start, gera várias soluções aleatórias e aplica a busca local em cada uma delas, retornando a melhor solução encontrada
         best_keys = None
         best_cost = float('inf')
+        best_ini_cost = float('inf')
         for _ in range(max_iter):
             random_keys = self.random_keys()
             ini_solution = self.env.decoder(random_keys)
             ini_cost = self.env.cost(ini_solution)
+            if ini_cost < best_ini_cost:
+                best_ini_cost = ini_cost
             
             keys = self.LocSearch(random_keys,x)
 
@@ -189,11 +196,11 @@ class Solvers():
                 best_cost = cost
                 best_keys = keys
         
-        print(f"Melhor Custo: {best_cost}")
+        print(f"Melhor Custo: {best_cost}, Melhor Custo Inicial: {best_ini_cost}")  
         print(f"Melhor Solução: {self.env.decoder(best_keys)}")
         return best_keys, best_cost
         
         
 env = VSBPP(hs_instances[0])
 solver = Solvers(env)
-Solvers.MultiStart(solver, 1000, 100)
+Solvers.MultiStart(solver, 100, 1000)
