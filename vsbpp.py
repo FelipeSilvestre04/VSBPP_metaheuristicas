@@ -1,4 +1,7 @@
 import os
+import numpy as np
+import random
+import copy
 
 CAPACITY = 0
 COST = 1
@@ -56,10 +59,12 @@ class VSBPP:
         # print("Bins: ", bins)
         self.__NUM_PIECES = len(pieces)
         self.__NUM_BINS = len(bins)
-        self.__MAX_BINS = self.NUM_PIECES
+        self.__MAX_BINS = self.__NUM_PIECES
         self.__pieces = pieces
         self.__bins = bins
-
+        
+        self.tam_solution = 2 * self.__NUM_PIECES 
+        
     def check_valid(self, solution: list[int]):
         # gera um dict com a capacidade atual de cada bin
         bins_capaity = { idx: self.__bins[tp][CAPACITY] for idx, tp in enumerate(solution[self.__NUM_PIECES:])}
@@ -73,14 +78,119 @@ class VSBPP:
     
     def cost(self, solution: list[int]):
         total_cost = 0
+        
+        idx_bin_atual = self.__NUM_PIECES
+        capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] 
+        capacidade_atual = 0
+        total_cost += self.__bins[solution[idx_bin_atual]][COST]    # Primeiro bin sempre começa aberto
 
-        for i in range(self.__NUM_PIECES):
-            idx_bin = solution[i]
-            tp_bin = solution[self.__NUM_PIECES + idx_bin]
-            total_cost += self.__bins[tp_bin][COST]
+        for idx in solution[0:self.__NUM_PIECES]: 
+            
+            capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual 
+            
+            if capacidade_atual <  capacidade_bin:
+                continue
+            else:
+                idx_bin_atual += 1
+                capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] # pega a capacidade do bin atual
+                capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
+                total_cost += self.__bins[solution[idx_bin_atual]][COST]     
 
-for ins in hs_instances:
-    env = VSBPP(ins)
+
+           
+            
+            
+        return total_cost
     
-for ins in monacci_instances:
-    env = VSBPP(ins)
+    def tipo_bin(self, key):
+        ratio = 1/self.__NUM_BINS
+        bin = 0
+        for i in range(self.__NUM_BINS):
+            if key < (i+1)*ratio:             
+                bin = i
+                break    
+        return bin
+    def decoder(self, keys): 
+        # Divide as chaves em peças e bins
+        piece_keys = keys[:self.__NUM_PIECES]  # pega os primeiros N valores, que são os itens
+        bin_keys = keys[self.__NUM_PIECES:]    # pega os N seguintes, que são os bins
+
+        # Ordena as peças com base nas chaves
+        sequence_pieces = np.argsort(piece_keys).tolist()  # Converte para lista
+
+        # Determina os tipos de bins
+        type_bins = [self.tipo_bin(key) for key in bin_keys]
+
+        # Junta os dois vetores para gerar a solução final
+        solution = sequence_pieces + type_bins
+        return solution
+
+class Solvers():
+    def __init__(self, env):
+        self.env = env
+        self.__MAX_KEYS = self.env.tam_solution
+        
+    
+    def random_keys(self):
+        return np.random.random(self.__MAX_KEYS)
+    
+    def vizinhos(self, keys): #Realiza perturbações nas chaves, gerando vizinhos, soluções proximas/parecidas, para a solução atual.
+        new_keys = copy.deepcopy(keys)
+        prob = random.random()
+        if  prob > 0.5:     
+            for i, key in enumerate(new_keys):
+                if random.random() > 0.5:
+                    new_keys[i] = key + random.uniform(-0.5*key, 0.5*(1-key)) # aumenta ou diminui metade das chaves, mas com valores baixos
+            
+        else:
+            
+            for i, key in enumerate(new_keys):
+                if random.random() > 0.7: # gera aleatouramente novos valores para 30% das chaves
+                    new_keys[i] = random.random()
+                    
+        return new_keys
+    
+    def LocSearch(self, keys, x): # Busca local, recebe uma chave/solução e busca ao redor dela outras soluções, para ver se existe algum solução melhor
+        iter = 0
+        best_keys = keys
+        solution = self.env.decoder(keys)
+        best_cost = self.env.cost(solution)
+        while iter < x:
+            new_keys = self.vizinhos(best_keys)
+            new_solution = self.env.decoder(new_keys)           
+            new_cost = self.env.cost(new_solution)
+            # print(f"x {iter}, Custo: {new_cost}")
+            
+            if new_cost < best_cost:
+                best_keys = new_keys
+                best_cost = new_cost
+                iter = 0
+            else:
+                iter += 1
+        
+        return best_keys
+    
+    def MultiStart(self,max_iter,x): # Multi Start, gera várias soluções aleatórias e aplica a busca local em cada uma delas, retornando a melhor solução encontrada
+        best_keys = None
+        best_cost = float('inf')
+        for _ in range(max_iter):
+            random_keys = self.random_keys()
+            keys = self.LocSearch(random_keys,x)
+
+            solution = self.env.decoder(keys)
+            cost = self.env.cost(solution)
+            
+            print(f"Iteração {_ + 1}, Custo: {cost}")
+            
+            if cost < best_cost:
+                best_cost = cost
+                best_keys = keys
+        
+        print(f"Melhor Custo: {best_cost}")
+        print(f"Melhor Solução: {self.env.decoder(best_keys)}")
+        return best_keys, best_cost
+        
+        
+env = VSBPP(hs_instances[0])
+solver = Solvers(env)
+Solvers.MultiStart(solver, 1000, 100)
