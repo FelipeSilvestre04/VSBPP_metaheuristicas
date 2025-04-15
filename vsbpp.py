@@ -49,7 +49,9 @@ class VSBPP:
         
         
         path = os.path.dirname(__file__)
-        full_path = path + "\Datasets\\" + instance_name 
+        full_path = path + "\Datasets" + "\VSBPP\\" + instance_name 
+
+        self.bins_usados = []
         
       
 
@@ -76,34 +78,44 @@ class VSBPP:
             bins_capaity[idx_bin] -= piece_weight # preenche o bin com o peso da pesa
         return True
     
-    def cost(self, solution: list[int]):
+    def cost(self, solution: list[int], final = False):
         total_cost = 0
+
+        pecas_usadas = 0
         
         idx_bin_atual = self.__NUM_PIECES
-        capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] 
+        capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][CAPACITY]
         capacidade_atual = 0
-        total_cost += self.__bins[solution[idx_bin_atual]][COST]    # Primeiro bin sempre começa aberto
 
-        for idx in solution[0:self.__NUM_PIECES]: 
+
+        total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][COST]   # Primeiro bin sempre começa aberto
+        idx = 0
+        while idx < self.__NUM_PIECES: # percorre todas as peças
             
-                        
-            if capacidade_atual + self.__pieces[idx] <  capacidade_bin: #Se a peça cabe no bin atual, adiciona ela ao bin atual
-                
-                capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual 
+            if capacidade_atual + self.__pieces[solution[idx]] <=  capacidade_bin: #Se a peça cabe no bin atual, adiciona ela ao bin atual
+               
+                capacidade_atual += self.__pieces[solution[idx]] # soma o peso da peça atual ao bin atual 
+                idx += 1 # avança para a próxima peça
+
+                if final:
+                    pecas_usadas+=1
             
             else: # Se não cabe, fecha o bin atual e abre um novo bin
-
-                idx_bin_atual += 1
-                capacidade_bin = self.__bins[solution[idx_bin_atual]][CAPACITY] # pega a capacidade do novo bin atual
-                capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
-                capacidade_atual += self.__pieces[idx] # soma o peso da peça atual ao bin atual
+                if final:
+                    self.bins_usados.append((capacidade_atual, capacidade_bin)) 
                 
-                total_cost += self.__bins[solution[idx_bin_atual]][COST]    #Adiciona o custo do novo bin aberto 
+                # print(idx_bin_atual, capacidade_atual, self.__pieces[solution[idx]],capacidade_bin)  
+                idx_bin_atual += 1
+                capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][CAPACITY] # pega a capacidade do novo bin atual # pega a capacidade do novo bin atual
+                
+                capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
+                
+                total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][COST]    #Adiciona o custo do novo bin aberto 
 
 
            
-            
-            
+        if final:    
+            print(pecas_usadas)
         return total_cost
     
     def tipo_bin(self, key):
@@ -114,6 +126,17 @@ class VSBPP:
                 bin = i
                 break    
         return bin
+    
+    def key_to_bin(self, key, size_piece):
+        bins_possiveis = []
+        for bin in self.__bins:
+            if bin[CAPACITY] >= size_piece:
+                bins_possiveis.append(bin)
+
+        ratio = 1/len(bins_possiveis)
+        bin = int(key/ratio) # pega o bin correspondente a chave
+        return self.__bins.index(bins_possiveis[bin]) # retorna o índice do bin correspondente a chave
+   
     def decoder(self, keys): 
         # Divide as chaves em peças e bins
         piece_keys = keys[:self.__NUM_PIECES]  # pega os primeiros N valores, que são os itens
@@ -123,7 +146,7 @@ class VSBPP:
         sequence_pieces = np.argsort(piece_keys).tolist()  # Converte para lista
 
         # Determina os tipos de bins
-        type_bins = [self.tipo_bin(key) for key in bin_keys]
+        type_bins = [key for key in bin_keys]
 
         # Junta os dois vetores para gerar a solução final
         solution = sequence_pieces + type_bins
