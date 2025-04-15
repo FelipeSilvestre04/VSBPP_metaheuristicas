@@ -179,20 +179,20 @@ class Solvers():
         best_cost = float('inf')
         best_ini_cost = float('inf')
         for _ in range(max_iter):
-            random_keys = self.random_keys()
-            ini_solution = self.env.decoder(random_keys)
+            random_keys = self.random_keys() #Gera uma solução inicial aleatoria
+            ini_solution = self.env.decoder(random_keys) 
             ini_cost = self.env.cost(ini_solution)
             if ini_cost < best_ini_cost:
                 best_ini_cost = ini_cost
             
-            keys = self.LocSearch(random_keys,x)
+            keys = self.LocSearch(random_keys,x) # Refina a solução aleatoria com a Busca Local
 
             solution = self.env.decoder(keys)
             cost = self.env.cost(solution)
             
             print(f"Iteração {_ + 1}, Custo Inicial: {ini_cost}, Custo Final: {cost}")
             
-            if cost < best_cost:
+            if cost < best_cost: # Salva a melhor solução
                 best_cost = cost
                 best_keys = keys
         
