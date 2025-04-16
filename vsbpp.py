@@ -47,11 +47,14 @@ def read_instance(path):
 class VSBPP:
     def __init__(self, instance_name):
         
+        self.instance_name = instance_name
+        
+        self.bins_usados = []
         
         path = os.path.dirname(__file__)
         full_path = path + "\Datasets" + "\VSBPP\\" + instance_name 
 
-        self.bins_usados = []
+
         
       
 
@@ -79,43 +82,61 @@ class VSBPP:
         return True
     
     def cost(self, solution: list[int], final = False):
-        total_cost = 0
+        total_cost = 0       
+        bins = []
 
-        pecas_usadas = 0
+  
         
         idx_bin_atual = self.__NUM_PIECES
         capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][CAPACITY]
         capacidade_atual = 0
 
-
+        bins.append([capacidade_atual, capacidade_bin]) # Adiciona o primeiro bin aberto na lista de bins usados
+        
         total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][COST]   # Primeiro bin sempre começa aberto
         idx = 0
         while idx < self.__NUM_PIECES: # percorre todas as peças
+            # print(bins)
+            bins_possiveis = [] # lista de bins possiveis para a peça atual
             
-            if capacidade_atual + self.__pieces[solution[idx]] <=  capacidade_bin: #Se a peça cabe no bin atual, adiciona ela ao bin atual
-               
-                capacidade_atual += self.__pieces[solution[idx]] # soma o peso da peça atual ao bin atual 
-                idx += 1 # avança para a próxima peça
+            for bin in bins: # percorre todos os bins abertos
+                if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: #Se a peça cabe no bin atual, adiciona ela ao bin atual
+                    # print(1)
+                    bins_possiveis.append(bin) # adiciona o bin atual a lista de bins possiveis
+                    
+            if len(bins_possiveis) > 0:  # Se cabe, adiciona a peça ao bin atual
+                melhor_ratio = 0
+                melhor_bin = None
 
-                if final:
-                    pecas_usadas+=1
+                for bin in bins_possiveis:  # percorre todos os bins abertos
+                    ratio = bin[0] / bin[1]  # calcula a razão entre o peso atual e a capacidade do bin
+                    if ratio >= melhor_ratio:
+                        melhor_ratio = ratio
+                        melhor_bin = copy.deepcopy(bin)  # pega o bin com a melhor razão
+
+                # Atualiza o bin com a nova capacidade
+                index = bins.index(melhor_bin)
+                bins[index] = (bins[index][0] + self.__pieces[solution[idx]], bins[index][1])  # Atualiza o peso atual no bin
+                idx += 1  # avança para a próxima peça
+
+      
             
-            else: # Se não cabe, fecha o bin atual e abre um novo bin
-                if final:
-                    self.bins_usados.append((capacidade_atual, capacidade_bin)) 
-                
-                # print(idx_bin_atual, capacidade_atual, self.__pieces[solution[idx]],capacidade_bin)  
+            else: # Se não cabe, abre um novo bin
+
+          
                 idx_bin_atual += 1
+   
                 capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][CAPACITY] # pega a capacidade do novo bin atual # pega a capacidade do novo bin atual
                 
                 capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
-                
+                bins.append([capacidade_atual, capacidade_bin]) # Adiciona o novo bin aberto na lista de bins usados
                 total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][COST]    #Adiciona o custo do novo bin aberto 
 
 
            
         if final:    
-            print(pecas_usadas)
+            print(bins)
+            self.bins_usados = bins
         return total_cost
     
     def tipo_bin(self, key):
