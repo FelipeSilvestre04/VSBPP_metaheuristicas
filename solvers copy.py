@@ -162,13 +162,11 @@ class Solvers():
             solution = self.env.decoder(keys)
             cost = self.env.cost(solution)
             
-            print(f"\rIteração {iter}, Custo Inicial: {ini_cost}, Custo Final: {cost}, tempo = {round(time.time() - start_time,2)}", end="")
+            print(f"Iteração {iter}, Custo Inicial: {ini_cost}, Custo Final: {cost}, tempo = {round(time.time() - start_time,2)}")
             
             if cost < best_cost:
                 best_cost = cost
                 best_keys = keys
-                
-                print(f"\nNOVO MELHOR: {best_cost}")
         
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)
@@ -281,12 +279,14 @@ class Solvers():
         
         start_time = time.time()
         
+        solutions = []
         
         while time.time() - start_time < limit_time:
             generation += 1
             
             elite = []
             fitness_elite = []
+            solutions = []
             
             fitness_values = []
             
@@ -300,13 +300,16 @@ class Solvers():
                 
                 fitness_values.append(fitness)
                 
+
+                
                 try:
-                    idx = elite.index(key)
+                    idx = solutions.index(sol)
                 
                 except:
                     erro = True
                 
                 if  erro:
+                    solutions.append(sol)
                     elite.append(key)
                     fitness_elite.append(fitness)
                 
@@ -319,7 +322,7 @@ class Solvers():
                     best_keys = key
                     best_fitness = fitness
                         
-                    print(f" \nNOVO MELHOR: {fitness}")
+                    # print(f" NOVO MELHOR: {fitness}")
         
             ordenado = sorted(zip(elite, fitness_elite), key=lambda x: x[1]) 
             elite, fitness_elite = zip(*ordenado)  
@@ -357,7 +360,7 @@ class Solvers():
                 new_population.append(child)
             
             population = new_population
-            print(f"\rGeração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s", end="")
+            print(f"Geração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s")
             
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)  
@@ -376,7 +379,7 @@ with open(nome_arquivo, "w") as f: #APENAS PARA TESTE
         env = VSBPP(ins)
         solver = Solvers(env)
         
-        f.write(f"Instancia: {env.instance_name}, {agora}\n\n")
+        f.write(f"Instancia: {env.instance_name}\n\n")
         f.flush()
 
         resultados_ms = []
@@ -398,11 +401,6 @@ with open(nome_arquivo, "w") as f: #APENAS PARA TESTE
             f.write(f"Resultado SA {i+1}: {out[1]} {out[0]}\n\n")
             f.flush()
 
-
-        media_brk = sum(resultados_brk) / len(resultados_brk)
-        f.write(f"Media dos resultados MS: {media_brk}\n\n")
-        f.flush()
-        
         media_ms = sum(resultados_ms) / len(resultados_ms)
         f.write(f"Media dos resultados MS: {media_ms}\n\n")
         f.flush()

@@ -98,18 +98,25 @@ class VSBPP:
         while idx < self.__NUM_PIECES: # percorre todas as peças
             # print(bins)
             bins_possiveis = [] # lista de bins possiveis para a peça atual
-            
+            tag = 0
             for bin in bins: # percorre todos os bins abertos
                 if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: #Se a peça cabe no bin atual, adiciona ela ao bin atual
                     # print(1)
                     bins_possiveis.append(bin) # adiciona o bin atual a lista de bins possiveis
+                    tag = 1
+                    
+                    # break
+                
+                # if tag == 1:
+                #     break 
+                    
                     
             if len(bins_possiveis) > 0:  # Se cabe, adiciona a peça ao bin atual
                 melhor_ratio = 0
                 melhor_bin = None
 
                 for bin in bins_possiveis:  # percorre todos os bins abertos
-                    ratio = bin[0] / bin[1]  # calcula a razão entre o peso atual e a capacidade do bin
+                    ratio = (bin[0] + self.__pieces[solution[idx]]) / bin[1]  # calcula a razão entre o peso atual e a capacidade do bin
                     if ratio >= melhor_ratio:
                         melhor_ratio = ratio
                         melhor_bin = copy.deepcopy(bin)  # pega o bin com a melhor razão
