@@ -45,7 +45,8 @@ def read_instance(path):
     return pieces, bins
 
 class VSBPP:
-    def __init__(self, instance_name):
+    def __init__(self, instance_name, dict_best = None):
+        self.dict_best = dict_best
         
         self.instance_name = instance_name
         
@@ -103,9 +104,9 @@ class VSBPP:
                 if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: #Se a peça cabe no bin atual, adiciona ela ao bin atual
                     # print(1)
                     bins_possiveis.append(bin) # adiciona o bin atual a lista de bins possiveis
-                    tag = 1
+                #     tag = 1
                     
-                    # break
+                #     break
                 
                 # if tag == 1:
                 #     break 

@@ -44,7 +44,16 @@ instances_prob = ["prob_25_1.txt", "prob_25_2.txt", "prob_25_3.txt", "prob_25_4.
 ]
 
 
+best = [
+    1350, 1310, 1140, 1190, 1090, 1260, 1250, 1250, 1350, 1370,
+    1940, 2210, 2700, 2520, 2590, 2320, 2490, 2720, 2140, 2630,
+    4870, 5430, 5140, 5170, 4960, 5160, 4770, 4840, 5100, 4640,
+    10910, 10290, 10150, 10100, 9910, 10620, 9920, 9900, 9890, 10200,
+    25000, 25720, 24340, 25790, 24440, 24870, 25010, 25100, 24920, 25560
+]
 
+
+dicionario_best = dict(zip(instances_prob, best))
 
 class Solvers():
     def __init__(self, env):
@@ -275,6 +284,7 @@ class Solvers():
         generation = 0
         tam_elite = int(pop_size * elite_pop)
         
+        
         population = [self.random_keys() for _ in range(pop_size)]
         best_keys = None
         best_fitness = float('inf')
@@ -320,6 +330,16 @@ class Solvers():
                     best_fitness = fitness
                         
                     print(f" \nNOVO MELHOR: {fitness}")
+                    if self.env.dict_best is not None:
+                        if self.env.instance_name in self.env.dict_best:
+                            if fitness == self.env.dict_best[self.env.instance_name]:
+                               
+                                solution = self.env.decoder(best_keys)
+                                cost = self.env.cost(solution, True)  
+                                
+                                    
+                                    
+                                return self.env.bins_usados, best_fitness
         
             ordenado = sorted(zip(elite, fitness_elite), key=lambda x: x[1]) 
             elite, fitness_elite = zip(*ordenado)  
@@ -356,8 +376,12 @@ class Solvers():
                 
                 new_population.append(child)
             
+   
+                
+     
             population = new_population
             print(f"\rGeração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s", end="")
+            
             
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)  
@@ -371,42 +395,47 @@ agora = datetime.datetime.now()
 nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
 
 
-with open(nome_arquivo, "w") as f: #APENAS PARA TESTE
+import csv
+from datetime import datetime
+
+with open(nome_arquivo, "w") as f_txt, open("resultados_4.csv", "w", newline='') as f_csv:
+    writer_csv = csv.writer(f_csv)
+    writer_csv.writerow(["Instancia",  "Media", "Melhor", "Gap"])  # cabeçalho do CSV
+
     for ins in instances_prob:
-        env = VSBPP(ins)
+        env = VSBPP(ins, dicionario_best)
         solver = Solvers(env)
         
-        f.write(f"Instancia: {env.instance_name}, {agora}\n\n")
-        f.flush()
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        f_txt.write(f"Instancia: {env.instance_name}, {agora}\n\n")
+        f_txt.flush()
 
-        resultados_ms = []
-        resultados_sa = []
         resultados_brk = []
         for i in range(3):
-            out = solver.BRKGA(1000, 0.3, 0.5,150)
+            out = solver.BRKGA(int(2000000/dicionario_best[ins]), 0.1, 0.5,150)
             resultados_brk.append(out[1])
-            f.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
-            f.flush()
-            
-            out = solver.MultiStart(10000, 5000, 150)
-            resultados_ms.append(out[1])
-            f.write(f"Resultado MS {i+1}: {out[1]} {out[0]}\n")
-            f.flush()
-
-            out = solver.SimulatedAnnealing(500, 10000, 0.995, 150)
-            resultados_sa.append(out[1])
-            f.write(f"Resultado SA {i+1}: {out[1]} {out[0]}\n\n")
-            f.flush()
-
+            f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
+            f_txt.flush()
 
         media_brk = sum(resultados_brk) / len(resultados_brk)
-        f.write(f"Media dos resultados MS: {media_brk}\n\n")
-        f.flush()
-        
-        media_ms = sum(resultados_ms) / len(resultados_ms)
-        f.write(f"Media dos resultados MS: {media_ms}\n\n")
-        f.flush()
+        melhor_valor = env.dict_best[env.instance_name]
+        gap = round(100 * ((media_brk - melhor_valor) / melhor_valor),2)
 
-        media_sa = sum(resultados_sa) / len(resultados_sa)
-        f.write(f"Media dos resultados SA: {media_sa}\n\n")
-        f.flush()
+
+        # salva no TXT
+        ultima_linha = f"Media dos resultados BRKGA: {media_brk} - Melhor: {melhor_valor} - Gap: {gap} - Pop: {int(2000000/dicionario_best[ins])}\n\n"
+        f_txt.write(ultima_linha)
+        f_txt.flush()
+
+        # salva no CSV
+        writer_csv.writerow([env.instance_name, media_brk, melhor_valor, gap])
+        f_csv.flush()
+
+        
+        # media_ms = sum(resultados_ms) / len(resultados_ms)
+        # f.write(f"Media dos resultados MS: {media_ms}\n\n")
+        # f.flush()
+
+        # media_sa = sum(resultados_sa) / len(resultados_sa)
+        # f.write(f"Media dos resultados SA: {media_sa}\n\n")
+        # f.flush()
