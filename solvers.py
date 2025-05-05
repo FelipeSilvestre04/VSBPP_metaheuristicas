@@ -100,7 +100,22 @@ class Solvers():
         return elite, fitness_elite
 
 
-    def vizinhos(self, keys): #Realiza perturbações nas chaves, gerando vizinhos, soluções proximas/parecidas, para a solução atual.
+    def vizinhos(self, keys, min = 0.1, max = 0.25):
+   
+        new_keys = keys.copy()
+        N = len(new_keys)
+
+        # número de posições a perturbar
+        min_p = int(min * N)
+        max_p = int(max * N)
+        n_perturb = random.randint(min_p, max_p)
+
+        for _ in range(n_perturb):
+            i = random.randrange(N)
+            new_keys[i] = random.random()
+
+        return new_keys
+    def pertubacao(self, keys): #Realiza perturbações nas chaves, gerando vizinhos, soluções proximas/parecidas, para a solução atual.
         new_keys = copy.deepcopy(keys)
         prob = random.random()
         if prob < 0.5:
@@ -330,16 +345,16 @@ class Solvers():
                     best_fitness = fitness
                         
                     print(f" \nNOVO MELHOR: {fitness}")
-                    if self.env.dict_best is not None:
-                        if self.env.instance_name in self.env.dict_best:
-                            if fitness == self.env.dict_best[self.env.instance_name]:
+                    # if self.env.dict_best is not None:
+                    #     if self.env.instance_name in self.env.dict_best:
+                    #         if fitness == self.env.dict_best[self.env.instance_name]:
                                
-                                solution = self.env.decoder(best_keys)
-                                cost = self.env.cost(solution, True)  
+                    #             solution = self.env.decoder(best_keys)
+                    #             cost = self.env.cost(solution, True)  
                                 
                                     
                                     
-                                return self.env.bins_usados, best_fitness
+                    #             return self.env.bins_usados, best_fitness
         
             ordenado = sorted(zip(elite, fitness_elite), key=lambda x: x[1]) 
             elite, fitness_elite = zip(*ordenado)  
@@ -397,45 +412,51 @@ nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
 
 import csv
 from datetime import datetime
-
-with open(nome_arquivo, "w") as f_txt, open("resultados_4.csv", "w", newline='') as f_csv:
+instancias = [ instances_slin, instances_conc,  instances_prob, instances_conv ]
+with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
     writer_csv = csv.writer(f_csv)
-    writer_csv.writerow(["Instancia",  "Media", "Melhor", "Gap"])  # cabeçalho do CSV
+    writer_csv.writerow(["Instancia",  "BRKGA", "MS", "SA"])  # cabeçalho do CSV
 
-    for ins in instances_prob:
-        env = VSBPP(ins, dicionario_best)
-        solver = Solvers(env)
-        
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        f_txt.write(f"Instancia: {env.instance_name}, {agora}\n\n")
-        f_txt.flush()
-
-        resultados_brk = []
-        for i in range(3):
-            out = solver.BRKGA(int(2000000/dicionario_best[ins]), 0.1, 0.5,150)
-            resultados_brk.append(out[1])
-            f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
+    for instance in instancias:
+        for ins in instance:
+            env = VSBPP(ins, dicionario_best)
+            solver = Solvers(env)
+            
+            agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f_txt.write(f"Instancia: {env.instance_name}, {agora}\n\n")
             f_txt.flush()
 
-        media_brk = sum(resultados_brk) / len(resultados_brk)
-        melhor_valor = env.dict_best[env.instance_name]
-        gap = round(100 * ((media_brk - melhor_valor) / melhor_valor),2)
+            resultados_ms = []
+            resultados_brk = []
+            resultados_sa = []
+            for i in range(3):
+                out = solver.BRKGA(3000, 0.3, 0.5,150)
+                resultados_brk.append(out[1])
+                f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
+                f_txt.flush()
+                
+                out = solver.MultiStart(10000, 5000, 150)
+                resultados_ms.append(out[1])
+                f_txt.write(f"Resultado MS {i+1}: {out[1]} {out[0]}\n")
+                f_txt.flush()
+
+                out = solver.SimulatedAnnealing(500, 10000, 0.995, 150)
+                resultados_sa.append(out[1])
+                f_txt.write(f"Resultado SA {i+1}: {out[1]} {out[0]}\n\n")
+                f_txt.flush()
 
 
-        # salva no TXT
-        ultima_linha = f"Media dos resultados BRKGA: {media_brk} - Melhor: {melhor_valor} - Gap: {gap} - Pop: {int(2000000/dicionario_best[ins])}\n\n"
-        f_txt.write(ultima_linha)
-        f_txt.flush()
+            media_brk = sum(resultados_brk) / len(resultados_brk)
+            f_txt.write(f"Media dos resultados MS: {media_brk}\n\n")
+            f_txt.flush()
+            
+            media_ms = sum(resultados_ms) / len(resultados_ms)
+            f_txt.write(f"Media dos resultados MS: {media_ms}\n\n")
+            f_txt.flush()
 
-        # salva no CSV
-        writer_csv.writerow([env.instance_name, media_brk, melhor_valor, gap])
-        f_csv.flush()
+            media_sa = sum(resultados_sa) / len(resultados_sa)
+            f_txt.write(f"Media dos resultados SA: {media_sa}\n\n")
+            f_txt.flush()
 
-        
-        # media_ms = sum(resultados_ms) / len(resultados_ms)
-        # f.write(f"Media dos resultados MS: {media_ms}\n\n")
-        # f.flush()
-
-        # media_sa = sum(resultados_sa) / len(resultados_sa)
-        # f.write(f"Media dos resultados SA: {media_sa}\n\n")
-        # f.flush()
+            f_csv.write(f'{ins}, {media_brk}, {media_ms}, {media_sa}\n')
+            f_csv.flush()
