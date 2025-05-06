@@ -333,7 +333,7 @@ class RKO():
         generation = 0
         tam_elite = int(pop_size * elite_pop)
         metade = False
-        tags = False
+        
         
         
         population = [self.random_keys() for _ in range(pop_size)]
@@ -345,8 +345,8 @@ class RKO():
         pop = 0
         qnt = 0
         while time.time() - start_time < limit_time:
-            if tags == False:
-                tags = True
+            if metade == False:
+                metade = True
                 if time.time() - start_time > limit_time/2:
                     population = [self.random_keys() for _ in range(pop_size)]
                     with lock:
