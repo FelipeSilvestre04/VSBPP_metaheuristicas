@@ -69,7 +69,7 @@ class VSBPP:
         self.__pieces = pieces
         self.__bins = bins
         
-        self.tam_solution = 2 * self.__NUM_PIECES 
+        self.tam_solution = 2*self.__NUM_PIECES 
         
     def check_valid(self, solution: list[int]):
         # gera um dict com a capacidade atual de cada bin
@@ -148,6 +148,21 @@ class VSBPP:
         ratio = 1/len(bins_possiveis)
         bin = int(key/ratio) # pega o bin correspondente a chave
         return self.__bins.index(bins_possiveis[bin]) # retorna o índice do bin correspondente a chave
+    def best_bin(self,  size_piece):
+        bins_possiveis = []
+        best_bin = None
+        best_fit = 1000000    
+        for bin in self.__bins:
+            if bin[CAPACITY] >= size_piece:
+                bins_possiveis.append(bin[COST])
+                if bin[COST] < best_fit:
+                    best_fit = bin[COST]
+                    best_bin = bin
+            
+        # print(best_fit, bins_possiveis)
+
+ 
+        return self.__bins.index(best_bin) # retorna o índice do bin correspondente a chave
    
     def decoder(self, keys): 
         # Divide as chaves em peças e bins
@@ -163,3 +178,65 @@ class VSBPP:
         # Junta os dois vetores para gerar a solução final
         solution = sequence_pieces + type_bins
         return solution
+
+    def decoder_2(self, keys): 
+        
+        piece_keys = keys
+       
+       
+        sequence_pieces = np.argsort(piece_keys).tolist()  
+
+
+      
+        solution = sequence_pieces 
+        return solution
+    
+    def cost_2(self, solution: list[int], final = False):
+        total_cost = 0       
+        bins = []
+        
+        for idx in range(self.__NUM_PIECES):
+            
+            bins_possiveis = []
+                
+            for bin in bins: 
+                if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: 
+                    bins_possiveis.append(bin) 
+                    
+            if len(bins_possiveis) > 0:  
+                melhor_ratio = 0
+                melhor_bin = None
+                for bin in bins_possiveis:  
+                    ratio = (bin[0] + self.__pieces[solution[idx]]) / bin[1] 
+                    if ratio > melhor_ratio:
+                        melhor_ratio = ratio
+                        melhor_bin = copy.deepcopy(bin)  
+                
+
+                # numero_bins = len(bins_possiveis)
+                # ratio = 1/numero_bins
+                # key = solution[idx_bin_atual] 
+                
+                # idx_bin = int(key/ratio)
+                
+                # bin = bins_possiveis[idx_bin] 
+                # melhor_bin = copy.deepcopy(bin) 
+
+                
+                index = bins.index(melhor_bin)
+                bins[index] = (bins[index][0] + self.__pieces[solution[idx]], bins[index][1])
+            else:
+                capacidade_bin = self.__bins[self.best_bin(self.__pieces[solution[idx]])][CAPACITY]                
+                capacidade_atual = self.__pieces[solution[idx]] 
+                bins.append([capacidade_atual, capacidade_bin]) 
+                total_cost += self.__bins[self.best_bin(self.__pieces[solution[idx]])][COST]   
+            
+     
+
+           
+        if final:    
+            print(bins)
+            self.bins_usados = bins
+        return total_cost
+
+    

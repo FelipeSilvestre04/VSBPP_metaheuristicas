@@ -199,17 +199,35 @@ class RKO():
         
         return best_keys
     
-    def MultiStart(self,max_iter,x, tempo = None): # Multi Start, gera várias soluções aleatórias e aplica a busca local em cada uma delas, retornando a melhor solução encontrada
+    def MultiStart(self,max_iter,x, tempo, tag,  pool,lock,best): # Multi Start, gera várias soluções aleatórias e aplica a busca local em cada uma delas, retornando a melhor solução encontrada
         best_keys = None
         best_cost = float('inf')
         best_ini_cost = float('inf')
         start_time = time.time()
         iter = 0
-        while iter < max_iter and time.time() - start_time < tempo:
+        random_keys = self.random_keys()
+        ini_solution = self.env.decoder(random_keys)
+        ini_cost = self.env.cost(ini_solution)
+        with lock:
+            entry = (ini_cost, random_keys)
+            
+            bisect.insort(pool, entry)       
+            if len(pool) > 10:
+                pool.pop() 
+
+        while time.time() - start_time < tempo:
             
             
             iter += 1
-            random_keys = self.random_keys()
+            k = 0
+            while True:
+                k+=1
+                # print(pool)
+                with lock:
+                    if len(pool) > 0:
+                        # print("POOL")
+                        break
+            random_keys = random.sample(list(pool), 1)[0][1]
             ini_solution = self.env.decoder(random_keys)
             ini_cost = self.env.cost(ini_solution)
             if ini_cost < best_ini_cost:
@@ -219,20 +237,32 @@ class RKO():
 
             solution = self.env.decoder(keys)
             cost = self.env.cost(solution)
+            with lock:
+                entry = (cost, list(keys))
+                
+                bisect.insort(pool, entry)       
+                if len(pool) > 10:
+                    pool.pop()
+
+            with lock:
+                if cost < best[0]:
+                    best[0] = cost
+                    best[1] = keys
+                    print(f"\n MS {tag} NOVO MELHOR: {cost} BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%") 
             
-            print(f"\rIteração {iter}, Custo Inicial: {ini_cost}, Custo Final: {cost}, tempo = {round(time.time() - start_time,2)}", end="")
+            # print(f"\rIteração {iter}, Custo Inicial: {ini_cost}, Custo Final: {cost}, tempo = {round(time.time() - start_time,2)}", end="")
             
             if cost < best_cost:
                 best_cost = cost
                 best_keys = keys
                 
-                print(f"\nNOVO MELHOR: {best_cost}")
+                # print(f"\n MS {tag} NOVO MELHOR: {best_cost}")
         
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)
-        print(f"Melhor Custo: {best_cost}, Melhor Custo Inicial: {best_ini_cost}, tempo = {round(time.time() - start_time,2)}")  
+        # print(f"Melhor Custo: {best_cost}, Melhor Custo Inicial: {best_ini_cost}, tempo = {round(time.time() - start_time,2)}")  
 
-        return self.env.bins_usados, best_cost
+        return self.env.bins_usados,best_keys, best_cost
         
 
     def SimulatedAnnealing(self,SAmax,Temperatura,alpha, tempo_max):
@@ -287,7 +317,7 @@ class RKO():
         
             
             
-        return self.env.bins_usados, best_cost
+        return self.env.bins_usados, best_keys, best_cost
         
         
     def GRASP(self,max_iter,x, tempo = None): # GRASP, gera várias soluções semi gulosas e aplica a busca local em cada uma delas, retornando a melhor solução encontrada
@@ -329,7 +359,7 @@ class RKO():
     
 
         
-    def BRKGA(self, pop_size, elite_pop, chance_elite, limit_time,tag,pool,lock):
+    def BRKGA(self, pop_size, elite_pop, chance_elite, limit_time,tag,pool,lock,best):
         generation = 0
         tam_elite = int(pop_size * elite_pop)
         metade = False
@@ -349,8 +379,8 @@ class RKO():
                 metade = True
                 if time.time() - start_time > limit_time/2:
                     population = [self.random_keys() for _ in range(pop_size)]
-                    with lock:
-                        pool = []
+                    # with lock:
+                    #     pool = []
             pop += 1
             generation += 1
             
@@ -389,10 +419,10 @@ class RKO():
                     best_keys = key
                     best_fitness = fitness
                         
-                    print(f" \n{tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
+                    print(f" \nBRKGA {tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
           
                     if fitness == self.env.dict_best[self.env.instance_name]:
-                        print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
+                        # print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
 
                         
                         solution = self.env.decoder(best_keys)
@@ -419,9 +449,18 @@ class RKO():
             with lock:
                 entry = (best_local_fitness, list(best_local_keys))
                 # print(entry)
-                bisect.insort(pool, entry)       
+                bisect.insort(pool, entry)  
+                # print(pool.type)     
                 if len(pool) > 10:
-                    pool.pop()  
+                    pool.pop()
+
+            with lock:
+                if fitness_elite[0] < best[0]:
+                    best[0] = fitness_elite[0]
+                    best[1] = elite[0]
+                    print(f" \nBRKGA {tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
+
+
                         
                         
                 # print(pool)
@@ -434,12 +473,12 @@ class RKO():
                 if random.random() < 0.9:
                     parent1 = random.sample(population, 1)[0]
                 else:
-                    parent1 = random.sample(pool, 1)[0][1]
+                    parent1 = random.sample(list(pool), 1)[0][1]
                     
                 if random.random() < 0.9:
                     parent2 = random.sample(elite, 1)[0]
                 else:
-                    parent2 = random.sample(pool, 1)[0][1]
+                    parent2 = random.sample(list(pool), 1)[0][1]
                     
                 
                
@@ -487,18 +526,50 @@ class RKO():
         if n_workers is None:
             n_workers = cpu_count()
 
+        brkga = 0
+        sa = 0
+        ms = 0
+        for i in range(n_workers):
+            tipo = int(input("Escolha o tipo de execução (0 - BRKGA, 1 - SA, 2 - MS): "))
+            if tipo == 0:
+                brkga += 1
+            elif tipo == 1:
+                sa += 1
+            elif tipo == 2:
+                ms += 1
+            else:
+                print("Tipo inválido. Usando BRKGA como padrão.")
+                brkga += 1
+
         manager = Manager()
         shared = manager.Namespace()
         shared.best_keys = None
         shared.best_fitness = float('inf')
-        shared.best_pool  = []
+        shared.best_pair = manager.list([float('inf'), None])
+        shared.best_pool = manager.list() 
         lock = manager.Lock()
         processes = []
         tag = 0
-        for _ in range(n_workers):
+        for _ in range(brkga):
             p = Process(
                 target=_brkga_worker,
                 args=(self.env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag)
+            )
+            tag += 1
+            processes.append(p)
+            p.start()
+        for _ in range(ms):
+            p = Process(
+                target=_MS_worker,
+                args=(self.env,10000,1,limit_time, shared, lock,tag)
+            )
+            tag += 1
+            processes.append(p)
+            p.start()
+        for _ in range(sa):
+            p = Process(
+                target=_SA_worker,
+                args=( limit_time, shared, lock,tag)
             )
             tag += 1
             processes.append(p)
@@ -515,14 +586,32 @@ class RKO():
         
 def _brkga_worker(env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag):
     runner = RKO(env)
-    _, local_keys, local_best = runner.BRKGA(pop_size, elite_pop, chance_elite, limit_time,tag,shared.best_pool,lock)
+    _, local_keys, local_best = runner.BRKGA(pop_size, elite_pop, chance_elite, limit_time,tag,shared.best_pool,lock,shared.best_pair)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
+
+def _MS_worker(env, max_itr, x, limit_time, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.MultiStart( max_itr,x,limit_time,tag,shared.best_pool,lock,shared.best_pair)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
+
+def _SA_worker(env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.SimulatedAnnealing( limit_time,tag,shared.best_pool,lock)
     
     with lock:
         if local_best < shared.best_fitness:
             shared.best_fitness = local_best
             shared.best_keys = local_keys
       
-instances_prob = reversed(instances_prob)  
+instances_conc = reversed(instances_conc)  
 if __name__ == "__main__":
     agora = datetime.datetime.now()
     nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
@@ -530,7 +619,7 @@ if __name__ == "__main__":
 
     import csv
     from datetime import datetime
-    instancias = [instances_prob, instances_slin, instances_conc,   instances_conv ]
+    instancias = [instances_conc,instances_prob, instances_slin,    instances_conv ]
     with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
         writer_csv = csv.writer(f_csv)
         writer_csv.writerow(["Instancia",  "BRKGA", "BEST", "GAP"])  # cabeçalho do CSV
@@ -551,8 +640,8 @@ if __name__ == "__main__":
                 for i in range(3):
                     solver = RKO(env)
                     out = solver.solve(
-                        pop_size=int(1_000_000/best),
-                        elite_pop=0.05 ,
+                        pop_size=int(100),
+                        elite_pop=0.3 ,
                         chance_elite=0.7,
                         limit_time=150,       
                         n_workers=6)
