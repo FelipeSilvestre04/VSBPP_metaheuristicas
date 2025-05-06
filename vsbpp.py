@@ -85,61 +85,44 @@ class VSBPP:
     def cost(self, solution: list[int], final = False):
         total_cost = 0       
         bins = []
-
-  
         
-        idx_bin_atual = self.__NUM_PIECES
-        capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][CAPACITY]
-        capacidade_atual = 0
-
-        bins.append([capacidade_atual, capacidade_bin]) # Adiciona o primeiro bin aberto na lista de bins usados
-        
-        total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[0]])][COST]   # Primeiro bin sempre começa aberto
-        idx = 0
-        while idx < self.__NUM_PIECES: # percorre todas as peças
-            # print(bins)
-            bins_possiveis = [] # lista de bins possiveis para a peça atual
-            tag = 0
-            for bin in bins: # percorre todos os bins abertos
-                if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: #Se a peça cabe no bin atual, adiciona ela ao bin atual
-                    # print(1)
-                    bins_possiveis.append(bin) # adiciona o bin atual a lista de bins possiveis
-                #     tag = 1
-                    
-                #     break
+        for idx in range(self.__NUM_PIECES):
+            idx_bin_atual = idx + self.__NUM_PIECES 
+            bins_possiveis = []
                 
-                # if tag == 1:
-                #     break 
+            for bin in bins: 
+                if bin[0] + self.__pieces[solution[idx]] <=  bin[1]: 
+                    bins_possiveis.append(bin) 
                     
-                    
-            if len(bins_possiveis) > 0:  # Se cabe, adiciona a peça ao bin atual
+            if len(bins_possiveis) > 0:  
                 melhor_ratio = 0
                 melhor_bin = None
-
-                for bin in bins_possiveis:  # percorre todos os bins abertos
-                    ratio = (bin[0] + self.__pieces[solution[idx]]) / bin[1]  # calcula a razão entre o peso atual e a capacidade do bin
-                    if ratio >= melhor_ratio:
+                for bin in bins_possiveis:  
+                    ratio = (bin[0] + self.__pieces[solution[idx]]) / bin[1] 
+                    if ratio > melhor_ratio:
                         melhor_ratio = ratio
-                        melhor_bin = copy.deepcopy(bin)  # pega o bin com a melhor razão
-
-                # Atualiza o bin com a nova capacidade
-                index = bins.index(melhor_bin)
-                bins[index] = (bins[index][0] + self.__pieces[solution[idx]], bins[index][1])  # Atualiza o peso atual no bin
-                idx += 1  # avança para a próxima peça
-
-      
-            
-            else: # Se não cabe, abre um novo bin
-
-          
-                idx_bin_atual += 1
-   
-                capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][CAPACITY] # pega a capacidade do novo bin atual # pega a capacidade do novo bin atual
+                        melhor_bin = copy.deepcopy(bin)  
                 
-                capacidade_atual = 0 # zera a capacidade atual, para o proximo bin
-                bins.append([capacidade_atual, capacidade_bin]) # Adiciona o novo bin aberto na lista de bins usados
-                total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][COST]    #Adiciona o custo do novo bin aberto 
 
+                # numero_bins = len(bins_possiveis)
+                # ratio = 1/numero_bins
+                # key = solution[idx_bin_atual] 
+                
+                # idx_bin = int(key/ratio)
+                
+                # bin = bins_possiveis[idx_bin] 
+                # melhor_bin = copy.deepcopy(bin) 
+
+                
+                index = bins.index(melhor_bin)
+                bins[index] = (bins[index][0] + self.__pieces[solution[idx]], bins[index][1])
+            else:
+                capacidade_bin = self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][CAPACITY]                
+                capacidade_atual = self.__pieces[solution[idx]] 
+                bins.append([capacidade_atual, capacidade_bin]) 
+                total_cost += self.__bins[self.key_to_bin(solution[idx_bin_atual],self.__pieces[solution[idx]])][COST]   
+            
+     
 
            
         if final:    

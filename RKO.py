@@ -6,6 +6,9 @@ import copy
 from vsbpp import VSBPP 
 import math
 import datetime
+import bisect
+from multiprocessing import Manager, Process, cpu_count
+
 
 
 instances_conc = ["H&Sconc100-2-1.txt", "H&Sconc100-2-2.txt", "H&Sconc100-2-3.txt", "H&Sconc100-2-4.txt", "H&Sconc100-2-5.txt","H&Sconc100-2-6.txt", "H&Sconc100-2-7.txt", "H&Sconc100-2-8.txt", "H&Sconc100-2-9.txt", "H&Sconc100-2-10.txt","H&Sconc200-2-1.txt", "H&Sconc200-2-2.txt", "H&Sconc200-2-3.txt", "H&Sconc200-2-4.txt", "H&Sconc200-2-5.txt","H&Sconc200-2-6.txt", "H&Sconc200-2-7.txt", "H&Sconc200-2-8.txt", "H&Sconc200-2-9.txt", "H&Sconc200-2-10.txt","H&Sconc500-2-1.txt", "H&Sconc500-2-2.txt", "H&Sconc500-2-3.txt", "H&Sconc500-2-4.txt", "H&Sconc500-2-5.txt","H&Sconc500-2-6.txt", "H&Sconc500-2-7.txt", "H&Sconc500-2-8.txt", "H&Sconc500-2-9.txt", "H&Sconc500-2-10.txt","H&Sconc1000-2-1.txt", "H&Sconc1000-2-2.txt", "H&Sconc1000-2-3.txt", "H&Sconc1000-2-4.txt", "H&Sconc1000-2-5.txt","H&Sconc1000-2-6.txt", "H&Sconc1000-2-7.txt", "H&Sconc1000-2-8.txt", "H&Sconc1000-2-9.txt", "H&Sconc1000-2-10.txt","H&Sconc2000-2-1.txt", "H&Sconc2000-2-2.txt", "H&Sconc2000-2-3.txt", "H&Sconc2000-2-4.txt", "H&Sconc2000-2-5.txt","H&Sconc2000-2-6.txt", "H&Sconc2000-2-7.txt", "H&Sconc2000-2-8.txt", "H&Sconc2000-2-9.txt", "H&Sconc2000-2-10.txt"]
@@ -86,7 +89,7 @@ dicionario_best = {
 }
 
 
-class Solvers():
+class RKO():
     def __init__(self, env):
         self.env = env
         self.__MAX_KEYS = self.env.tam_solution
@@ -326,9 +329,11 @@ class Solvers():
     
 
         
-    def BRKGA(self, pop_size, elite_pop, chance_elite, limit_time):
+    def BRKGA(self, pop_size, elite_pop, chance_elite, limit_time,tag,pool,lock):
         generation = 0
         tam_elite = int(pop_size * elite_pop)
+        metade = False
+        tags = False
         
         
         population = [self.random_keys() for _ in range(pop_size)]
@@ -338,8 +343,14 @@ class Solvers():
         start_time = time.time()
         
         pop = 0
-        
+        qnt = 0
         while time.time() - start_time < limit_time:
+            if tags == False:
+                tags = True
+                if time.time() - start_time > limit_time/2:
+                    population = [self.random_keys() for _ in range(pop_size)]
+                    with lock:
+                        pool = []
             pop += 1
             generation += 1
             
@@ -348,15 +359,13 @@ class Solvers():
             fitness_elite = []
             
             fitness_values = []
-            if pop == 200:
-                pop = 0
-                population = [self.random_keys() for _ in range(pop_size)]
+
                   
             
             
             for key in population:
                 
-               
+                qnt += 1
                 
                 sol = self.env.decoder(key)
                 fitness = self.env.cost(sol)
@@ -380,16 +389,18 @@ class Solvers():
                     best_keys = key
                     best_fitness = fitness
                         
-                    print(f" \nNOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
+                    print(f" \n{tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
           
                     if fitness == self.env.dict_best[self.env.instance_name]:
+                        print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
+
                         
                         solution = self.env.decoder(best_keys)
                         cost = self.env.cost(solution, True)  
                         
                             
                             
-                        return self.env.bins_usados, best_fitness
+                        return self.env.bins_usados, best_keys, best_fitness
         
             ordenado = sorted(zip(elite, fitness_elite), key=lambda x: x[1]) 
             elite, fitness_elite = zip(*ordenado)  
@@ -403,27 +414,49 @@ class Solvers():
             
             # print(fitness_elite)
 
-            
-            
+            best_local_fitness = fitness_elite[0]
+            best_local_keys = elite[0]
+            with lock:
+                entry = (best_local_fitness, list(best_local_keys))
+                # print(entry)
+                bisect.insort(pool, entry)       
+                if len(pool) > 10:
+                    pool.pop()  
+                        
+                        
+                # print(pool)
+                    
             new_population = [elite[0]]
   
 
             while len(new_population) < pop_size:
-
-                parent1 = random.sample(population, 1)[0]
-                parent2 = random.sample(elite, 1)[0]
+                
+                if random.random() < 0.9:
+                    parent1 = random.sample(population, 1)[0]
+                else:
+                    parent1 = random.sample(pool, 1)[0][1]
+                    
+                if random.random() < 0.9:
+                    parent2 = random.sample(elite, 1)[0]
+                else:
+                    parent2 = random.sample(pool, 1)[0][1]
+                    
                 
                
                 child1 = np.zeros(self.__MAX_KEYS)
                 child2 = np.zeros(self.__MAX_KEYS)
-                for i in range(len(child1)):
-                    if random.random() < chance_elite:
-                        child1[i] = parent2[i]
-                        child2[i] = parent1[i]
-                        
-                    else:
-                        child1[i] = parent1[i]
-                        child2[i] = parent2[i]
+                if random.random() < 0.95:
+                    for i in range(len(child1)):
+                        if random.random() < chance_elite:
+                            child1[i] = parent2[i]
+                            child2[i] = parent1[i]
+                            
+                        else:
+                            child1[i] = parent1[i]
+                            child2[i] = parent2[i]
+                else:
+                    child1 = parent1
+                    child2 = parent2
                 
                 
                 for idx in range(len(child1)):
@@ -439,72 +472,101 @@ class Solvers():
                 
      
             population = new_population
-            print(f"\rGeração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s", end="")
+            print(f"\r{tag} Geração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s")
             
             
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)  
         
             
+        print(qnt)    
+        return self.env.bins_usados, best_keys, best_fitness
+
+    def solve(self, pop_size, elite_pop, chance_elite, limit_time, n_workers=None):
+        """Roda múltiplas instâncias de BRKGA em paralelo e compartilha apenas best_solution."""
+        if n_workers is None:
+            n_workers = cpu_count()
+
+        manager = Manager()
+        shared = manager.Namespace()
+        shared.best_keys = None
+        shared.best_fitness = float('inf')
+        shared.best_pool  = []
+        lock = manager.Lock()
+        processes = []
+        tag = 0
+        for _ in range(n_workers):
+            p = Process(
+                target=_brkga_worker,
+                args=(self.env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag)
+            )
+            tag += 1
+            processes.append(p)
+            p.start()
+
+        for p in processes:
+            p.join()
+
+
+        solution = self.env.decoder(shared.best_keys)
+        
+        cost = self.env.cost(solution, True)
+        return self.env.bins_usados, shared.best_fitness
+        
+def _brkga_worker(env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.BRKGA(pop_size, elite_pop, chance_elite, limit_time,tag,shared.best_pool,lock)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
+      
+instances_prob = reversed(instances_prob)  
+if __name__ == "__main__":
+    agora = datetime.datetime.now()
+    nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
+
+
+    import csv
+    from datetime import datetime
+    instancias = [instances_prob, instances_slin, instances_conc,   instances_conv ]
+    with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
+        writer_csv = csv.writer(f_csv)
+        writer_csv.writerow(["Instancia",  "BRKGA", "BEST", "GAP"])  # cabeçalho do CSV
+
+        for instance in instancias:
+            for ins in instance:
+                env = VSBPP(ins, dicionario_best)
+                best = dicionario_best[ins]
             
-        return self.env.bins_usados, best_fitness
+                
+                agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                f_txt.write(f"Instancia: {env.instance_name}, {agora}\n\n")
+                f_txt.flush()
 
-
-agora = datetime.datetime.now()
-nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
-
-
-import csv
-from datetime import datetime
-instancias = [instances_prob, instances_slin, instances_conc,   instances_conv ]
-with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
-    writer_csv = csv.writer(f_csv)
-    writer_csv.writerow(["Instancia",  "BRKGA", "BEST", "GAP"])  # cabeçalho do CSV
-
-    for instance in instancias:
-        for ins in instance:
-            best = dicionario_best[ins]
-            env = VSBPP(ins, dicionario_best)
-            solver = Solvers(env)
-            
-            agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f_txt.write(f"Instancia: {env.instance_name}, {agora}\n\n")
-            f_txt.flush()
-
-            resultados_ms = []
-            resultados_brk = []
-            resultados_sa = []
-            for i in range(3):
-                out = solver.BRKGA(int(100_000_000/best), 0.05, 0.7,150)
-                resultados_brk.append(out[1])
-                f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
+                resultados_ms = []
+                resultados_brk = []
+                resultados_sa = []
+                for i in range(3):
+                    solver = RKO(env)
+                    out = solver.solve(
+                        pop_size=int(1_000_000/best),
+                        elite_pop=0.05 ,
+                        chance_elite=0.7,
+                        limit_time=150,       
+                        n_workers=6)
+                    
+                    resultados_brk.append(out[1])
+                    f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
+                    f_txt.flush()
+                    
+                media_brk = sum(resultados_brk) / len(resultados_brk)
+                best = dicionario_best[ins]
+                gap = (media_brk - best) / best * 100
+                f_txt.write(f"Media dos resultados MS: {media_brk}\n\n")
                 f_txt.flush()
                 
-                # out = solver.MultiStart(10000, 5000, 150)
-                # resultados_ms.append(out[1])
-                # f_txt.write(f"Resultado MS {i+1}: {out[1]} {out[0]}\n")
-                # f_txt.flush()
+                f_csv.write(f'{ins}, {int(round(media_brk,0))}, {best}, {round(gap,2)} \n')
+                f_csv.flush()
 
-                # out = solver.SimulatedAnnealing(500, 10000, 0.995, 150)
-                # resultados_sa.append(out[1])
-                # f_txt.write(f"Resultado SA {i+1}: {out[1]} {out[0]}\n\n")
-                # f_txt.flush()
-
-
-            media_brk = sum(resultados_brk) / len(resultados_brk)
-            best = dicionario_best[ins]
-            gap = (media_brk - best) / best * 100
-            f_txt.write(f"Media dos resultados MS: {media_brk}\n\n")
-            f_txt.flush()
-            
-            # media_ms = sum(resultados_ms) / len(resultados_ms)
-            # f_txt.write(f"Media dos resultados MS: {media_ms}\n\n")
-            # f_txt.flush()
-
-            # media_sa = sum(resultados_sa) / len(resultados_sa)
-            # f_txt.write(f"Media dos resultados SA: {media_sa}\n\n")
-            # f_txt.flush()
-
-            # f_csv.write(f'{ins}, {media_brk}, {media_ms}, {media_sa}\n')
-            f_csv.write(f'{ins}, {media_brk}, {best}, {gap} \n')
-            f_csv.flush()
