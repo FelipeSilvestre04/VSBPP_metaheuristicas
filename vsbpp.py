@@ -82,6 +82,253 @@ class VSBPP:
             bins_capaity[idx_bin] -= piece_weight # preenche o bin com o peso da pesa
         return True
     
+    def ssp3(self):
+        """
+        Implements SSP3 and builds Random-Key encoding for the existing decoder:
+        1) Collects `sequence` of item indices in pack order
+        2) Collects `type_bins` flags (best_type/num_bins for first in each bin, else 0)
+        3) Calls encoder_from_solution(sequence, type_bins) to compute keys
+        Returns (total_cost, keys)
+        """
+        N = len(self.__pieces)
+        num_bins = len(self.__bins)
+        # lists to record the exact placement order and bin decisions
+        sequence = []    # order of item indices
+        type_bins = []   # per position, bin_type/num_bins or 0
+
+        J_bar = list(range(N))
+        bins = []  # list of [load, capacity]
+        total_cost = 0
+
+        while J_bar:
+            # force largest remaining item
+            j0 = max(J_bar, key=lambda j: self.__pieces[j])
+            w0 = self.__pieces[j0]
+            # subset-sum search among feasible bin types
+            best_ratio = float('inf')
+            best_S = None
+            best_type = None
+            best_cap = None
+            for t, (cap, cost) in enumerate(self.__bins):
+                if cap < w0: continue
+                cap_rem = cap - w0
+                dp = {0: []}
+                for j in J_bar:
+                    if j == j0: continue
+                    wj = self.__pieces[j]
+                    for s, subset in list(dp.items()):
+                        ns = s + wj
+                        if ns <= cap_rem and ns not in dp:
+                            dp[ns] = subset + [j]
+                max_s = max(dp)
+                subset = [j0] + dp[max_s]  # forced item first, then subset
+                load = w0 + max_s
+                ratio = cost / load
+                if ratio < best_ratio:
+                    best_ratio, best_S, best_type, best_cap = ratio,  subset, t, cap
+            # pack into new bin
+            bins.append([sum(self.__pieces[j] for j in best_S), best_cap])
+            total_cost += self.__bins[best_type][COST]
+            # record sequence and bin keys
+            for idx_in_bin, j in enumerate(best_S):
+                sequence.append(j)
+                if idx_in_bin == 0:
+                    feasible = [t for t,(cap,_) in enumerate(self.__bins) if cap >= w0]
+                    pos_in_feasible = feasible.index(best_type)
+                    type_bins.append(pos_in_feasible / len(feasible))
+                else:
+                    type_bins.append(0.00000000000000001)
+                J_bar.remove(j)
+
+      
+        # now encode via helper
+        keys = self.encoder_from_solution(sequence, type_bins)
+        # report
+        best_known = self.dict_best.get(self.instance_name)
+        # if best_known is not None:
+        #     gap = round((total_cost - best_known) / best_known * 100, 2)
+        #     print(f"ins: {self.instance_name} - cost: {total_cost} - best: {best_known} - gap:{gap}%")
+        #     # if total_cost == self.cost(self.decoder(keys)):
+        #         # print("Solution is feasible")
+        # else:
+        #     print(f"ins: {self.instance_name} - cost: {total_cost}")
+        return total_cost, keys
+
+    def encoder_from_solution(self, sequence, type_bins):
+        N = self.__NUM_PIECES
+        M = len(self.__bins)
+        # piece_keys[j] = posição de j em `sequence` normalizada
+        piece_keys = [0]*N
+        for pos, j in enumerate(sequence):
+            piece_keys[j] = (pos+1)/(N+1)
+        # bin_keys já estão em [0,1)
+        bin_keys = type_bins
+        return piece_keys + bin_keys
+
+
+    def greedy_solution_cost(self, p):
+        max_itens = len(self.__pieces)
+        itr = 0
+        bins = []           # [load, capacity]
+        sequence = []       # ordem de colocação
+        type_bins = []      # flags de bin
+        total_cost = 0
+
+        # ordenar índices por peso decrescente
+        maiores = sorted(range(max_itens), key=lambda j: self.__pieces[j], reverse=True)
+
+        for idx in maiores:
+            itr += 1
+            # print(f"\r{100*(itr/max_itens):.1f}%", end="")
+
+            # busca bins onde cabe
+            bins_possiveis = [b for b in bins if b[0] + self.__pieces[idx] <= b[1]]
+
+            if bins_possiveis:
+                # escolhe bin com maior fill ratio após inserir
+                melhor_ratio = -1
+                melhor_bin = None
+                for b in bins_possiveis:
+                    ratio = (b[0] + self.__pieces[idx]) / b[1]
+                    if ratio > melhor_ratio:
+                        melhor_ratio = ratio
+                        melhor_bin = b
+                # atualiza carga
+                i = bins.index(melhor_bin)
+                bins[i][0] += self.__pieces[idx]
+                # registro: não é início de bin
+                sequence.append(idx)
+                type_bins.append(1e-17)
+            else:
+                # abre novo bin
+                t = self.best_bin_cost(self.__pieces[idx])
+                cap = self.__bins[t][CAPACITY]
+                cost = self.__bins[t][COST]
+                bins.append([self.__pieces[idx], cap])
+                total_cost += cost
+                # registro: início de bin
+                # lista tipos que cabem
+                feas = [i for i,(c,_) in enumerate(self.__bins) if c >= self.__pieces[idx]]
+                pos = feas.index(t)
+                sequence.append(idx)
+                type_bins.append(pos/len(feas))
+
+        # chama encoder
+        keys = self.encoder_from_solution(sequence, type_bins)
+
+        # relatório
+        # best = self.dict_best.get(self.instance_name, None)
+        # if best is not None:
+        #     gap = round((total_cost - best)/best*100, 2)
+        #     print(f"\nins: {self.instance_name} - cost:{total_cost} - best:{best} - gap:{gap}%")
+        # else:
+        #     print(f"\nins: {self.instance_name} - cost:{total_cost}")
+
+        return total_cost, keys
+
+    def greedy_solution_capacity(self, p):
+        max_itens = len(self.__pieces)
+        itr = 0
+        bins = []           # [load, capacity]
+        sequence = []       # ordem de colocação
+        type_bins = []      # flags de bin
+        total_cost = 0
+
+        # ordenar índices por peso decrescente
+        maiores = sorted(range(max_itens), key=lambda j: self.__pieces[j], reverse=True)
+
+        for idx in maiores:
+            itr += 1
+            # print(f"\r{100*(itr/max_itens):.1f}%", end="")
+
+            # busca bins onde cabe
+            bins_possiveis = [b for b in bins if b[0] + self.__pieces[idx] <= b[1]]
+
+            if bins_possiveis:
+                # escolhe bin com maior fill ratio após inserir
+                melhor_ratio = -1
+                melhor_bin = None
+                for b in bins_possiveis:
+                    ratio = (b[0] + self.__pieces[idx]) / b[1]
+                    if ratio > melhor_ratio:
+                        melhor_ratio = ratio
+                        melhor_bin = b
+                # atualiza carga
+                i = bins.index(melhor_bin)
+                bins[i][0] += self.__pieces[idx]
+                # registro: não é início de bin
+                sequence.append(idx)
+                type_bins.append(1e-17)
+            else:
+                # abre novo bin com base na capacidade
+                t = self.best_bin_capacity(self.__pieces[idx])
+                cap = self.__bins[t][CAPACITY]
+                cost = self.__bins[t][COST]
+                bins.append([self.__pieces[idx], cap])
+                total_cost += cost
+                # registro: início de bin
+                feas = [i for i,(c,_) in enumerate(self.__bins) if c >= self.__pieces[idx]]
+                pos = feas.index(t)
+                sequence.append(idx)
+                type_bins.append(pos/len(feas))
+
+        # chama encoder
+        keys = self.encoder_from_solution(sequence, type_bins)
+
+        # relatório
+        # best = self.dict_best.get(self.instance_name, None)
+        # if best is not None:
+        #     gap = round((total_cost - best)/best*100, 2)
+        #     print(f"\nins: {self.instance_name} - cost:{total_cost} - best:{best} - gap:{gap}%")
+        # else:
+        #     print(f"\nins: {self.instance_name} - cost:{total_cost}")
+
+        return total_cost, keys
+  
+            
+    def best_bin_cost(self,  size_piece):
+        bins_possiveis = []
+        best_bin = None
+        best_fit = 2000000    
+        for bin in self.__bins:
+            if bin[CAPACITY] >= size_piece:
+                ratio = bin[COST] 
+                bins_possiveis.append(bin[COST])
+                if ratio < best_fit:
+                    best_fit = ratio
+                    best_bin = bin
+        return self.__bins.index(best_bin) 
+    
+    def best_bin_capacity(self,  size_piece):
+        bins_possiveis = []
+        best_bin = None
+        best_fit = 0    
+        for bin in self.__bins:
+            if bin[CAPACITY] >= size_piece:
+                ratio = bin[CAPACITY]
+                bins_possiveis.append(bin[COST])
+                if ratio > best_fit:
+                    best_fit = ratio
+                    best_bin = bin
+            
+      
+ 
+        return self.__bins.index(best_bin) 
+         
+    def decoder(self, keys): 
+        # Divide as chaves em peças e bins
+        piece_keys = keys[:self.__NUM_PIECES]  # pega os primeiros N valores, que são os itens
+        bin_keys = keys[self.__NUM_PIECES:]    # pega os N seguintes, que são os bins
+
+        # Ordena as peças com base nas chaves
+        sequence_pieces = np.argsort(piece_keys).tolist()  # Converte para lista
+
+        # Determina os tipos de bins
+        type_bins = [key for key in bin_keys]
+
+        # Junta os dois vetores para gerar a solução final
+        solution = sequence_pieces + type_bins
+        return solution       
     def cost(self, solution: list[int], final = False):
         total_cost = 0       
         bins = []
@@ -126,7 +373,7 @@ class VSBPP:
 
            
         if final:    
-            print(bins)
+            # print(bins)
             self.bins_usados = bins
         return total_cost
     
@@ -139,45 +386,13 @@ class VSBPP:
                 break    
         return bin
     
-    def key_to_bin(self, key, size_piece):
-        bins_possiveis = []
-        for bin in self.__bins:
-            if bin[CAPACITY] >= size_piece:
-                bins_possiveis.append(bin)
+    def key_to_bin(self, key, piece_size):
+        feasible = [i for i, (cap, _) in enumerate(self.__bins) if cap >= piece_size]
+        idx = min(int(key * len(feasible)), len(feasible) - 1)
+        return feasible[idx]
 
-        ratio = 1/len(bins_possiveis)
-        bin = int(key/ratio) # pega o bin correspondente a chave
-        return self.__bins.index(bins_possiveis[bin]) # retorna o índice do bin correspondente a chave
-    def best_bin(self,  size_piece):
-        bins_possiveis = []
-        best_bin = None
-        best_fit = 1000000    
-        for bin in self.__bins:
-            if bin[CAPACITY] >= size_piece:
-                bins_possiveis.append(bin[COST])
-                if bin[COST] < best_fit:
-                    best_fit = bin[COST]
-                    best_bin = bin
-            
-        # print(best_fit, bins_possiveis)
-
- 
-        return self.__bins.index(best_bin) # retorna o índice do bin correspondente a chave
    
-    def decoder(self, keys): 
-        # Divide as chaves em peças e bins
-        piece_keys = keys[:self.__NUM_PIECES]  # pega os primeiros N valores, que são os itens
-        bin_keys = keys[self.__NUM_PIECES:]    # pega os N seguintes, que são os bins
 
-        # Ordena as peças com base nas chaves
-        sequence_pieces = np.argsort(piece_keys).tolist()  # Converte para lista
-
-        # Determina os tipos de bins
-        type_bins = [key for key in bin_keys]
-
-        # Junta os dois vetores para gerar a solução final
-        solution = sequence_pieces + type_bins
-        return solution
 
     def decoder_2(self, keys): 
         
@@ -238,5 +453,9 @@ class VSBPP:
             print(bins)
             self.bins_usados = bins
         return total_cost
+    
+    
+    
+
 
     

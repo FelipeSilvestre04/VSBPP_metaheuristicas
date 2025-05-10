@@ -238,26 +238,35 @@ class RKO():
             solution = self.env.decoder(keys)
             cost = self.env.cost(solution)
             with lock:
-                entry = (cost, list(keys))
+                entry = (cost, keys)
                 
                 bisect.insort(pool, entry)       
-                if len(pool) > 10:
+                if len(pool) > 20:
                     pool.pop()
 
-            with lock:
-                if cost < best[0]:
-                    best[0] = cost
-                    best[1] = keys
-                    print(f"\n MS {tag} NOVO MELHOR: {cost} BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%") 
+            # with lock:
+            #     if cost < best[0]:
+            #         best[0] = cost
+            #         best[1] = keys
+            #         print(f"\n MS {tag} NOVO MELHOR: {cost} BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%") 
             
-            # print(f"\rIteração {iter}, Custo Inicial: {ini_cost}, Custo Final: {cost}, tempo = {round(time.time() - start_time,2)}", end="")
+            print(f"\rtempo = {round(time.time() - start_time,2)}", end="")
             
             if cost < best_cost:
                 best_cost = cost
                 best_keys = keys
                 
-                # print(f"\n MS {tag} NOVO MELHOR: {best_cost}")
-        
+                print(f"\n MS {tag} NOVO MELHOR: {cost} BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%") 
+                if best_cost == self.env.dict_best[self.env.instance_name]:
+                        # print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
+
+                        
+                        solution = self.env.decoder(best_keys)
+                        cost = self.env.cost(solution, True)  
+                        
+                            
+                            
+                        return self.env.bins_usados, best_keys, best_cost
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)
         # print(f"Melhor Custo: {best_cost}, Melhor Custo Inicial: {best_ini_cost}, tempo = {round(time.time() - start_time,2)}")  
@@ -351,11 +360,213 @@ class RKO():
 
         return best_keys, best_cost
     
-    def VNS(self):
-        pass
+    def VNS(self,limit_time,x, tag,  pool,lock,best):
+        k = [[0.01, 0.2], [0.2, 0.4], [0.4, 0.6], [0.6, 0.8], [0.8, 0.99]]
+        idx_k = 0
+        start_time = time.time()
+        bests_S = []
+        sol = self.env.ssp3()
+        s = sol[1]
+        bests_S.append(s)
+        
+        best_cost = sol[0]
+        best_keys = s
+        
+        sol = self.env.greedy_solution_capacity(0)
+        s = sol[1]
+        bests_S.append(s)
+        
+        if best_cost > sol[0]:
+            best_cost = sol[0]
+            best_keys = s
+        
+        sol = self.env.greedy_solution_cost(0)
+        s = sol[1]
+        bests_S.append(s)
+        
+        if best_cost > sol[0]:
+            best_cost = sol[0]
+            best_keys = s
+        
+        
+        
+ 
+        
+        print(f"VNS {tag} Melhor Custo: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+        if best_cost == self.env.dict_best[self.env.instance_name]:
+                    print(f"VNS {tag} MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")                        
+                    print(f"VNS {tag} ENCERRADO")
+                    solution = self.env.decoder(best_keys)
+                    cost = self.env.cost(solution, True)  
+                        
+                            
+                            
+                    return self.env.bins_usados, best_keys, best_cost    
+        
+        while time.time() - start_time < limit_time:
+            print(f"\rtempo = {round(time.time() - start_time,2)} ", end="")
+
+            if idx_k >= len(k) + 1:
+                idx_k = 0
+                
+            if random.random() < 0.1:
+                    s1 = random.sample(list(pool), 1)[0][1]
+            
+            else:
+
+                if idx_k == len(k):
+                    s1 = self.pertubacao(bests_S[random.randint(0, len(bests_S)-1)])
+                    # print("Pertubação")
+                else:  
+                    s1 = self.vizinhos(bests_S[random.randint(0, len(bests_S)-1)], k[idx_k][0], k[idx_k][1])
+                    
+            # print(s1)
+            s2 = self.LocSearch(s1,x)
+            
+            sol2 = self.env.decoder(s2)
+            cost = self.env.cost(sol2)
+            # print(tag, cost,best_cost)
+            
+            if cost <= best_cost:
+                best_cost = cost
+                best_keys = s2
+                
+                bests_S.append(s2)
+                # print(f"VNS {tag} Melhor Custo: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+                with lock:
+                    entry = (best_cost, list(best_keys))
+                       
+                    bisect.insort(pool, entry)  
+                    
+                    if len(pool) > 20:
+                        pool.pop()
+                        
+                    if best_cost < best[0]:
+                        best[0] = best_cost
+                        best[1] = list(best_keys)
+                        print(f"VNS {tag} NOVO MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+                        
+                
+                if best_cost == self.env.dict_best[self.env.instance_name]:
+                    print(f"VNS {tag} MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")                        
+                    print(f"VNS {tag} ENCERRADO")
+                    solution = self.env.decoder(best_keys)
+                    cost = self.env.cost(solution, True)  
+                        
+                            
+                            
+                    return self.env.bins_usados, best_keys, best_cost        
+            else:
+                idx_k += 1
+
+        solution = self.env.decoder(best_keys)
+        cost = self.env.cost(solution, True)  
+        
+            
+        print(f"VNS {tag} ENCERRADO")
+        return self.env.bins_usados, best_keys, best_cost
+            
     
-    def ILS(self):
-        pass
+    def ILS(self,limit_time,x, tag,  pool,lock,best):
+
+        start_time = time.time()
+        bests_S = []
+        sol = self.env.ssp3()
+        s = sol[1]
+        bests_S.append(s)
+        
+        best_cost = sol[0]
+        best_keys = s
+        
+        sol = self.env.greedy_solution_capacity(0)
+        s = sol[1]
+        bests_S.append(s)
+        
+        if best_cost > sol[0]:
+            best_cost = sol[0]
+            best_keys = s
+        
+        sol = self.env.greedy_solution_cost(0)
+        s = sol[1]
+        bests_S.append(s)
+        
+        if best_cost > sol[0]:
+            best_cost = sol[0]
+            best_keys = s
+        
+        
+        
+ 
+        
+        
+        print(f"ILS {tag} Melhor Custo: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+        if best_cost == self.env.dict_best[self.env.instance_name]:
+                    print(f"VNS {tag} MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")                        
+                    print(f"VNS {tag} ENCERRADO")
+                    solution = self.env.decoder(best_keys)
+                    cost = self.env.cost(solution, True)  
+                        
+                            
+                            
+                    return self.env.bins_usados, best_keys, best_cost    
+        while time.time() - start_time < limit_time:
+            print(f"\rtempo = {round(time.time() - start_time,2)} ", end="")
+
+
+                
+            if random.random() < 0.1:
+                    s1 = random.sample(list(pool), 1)[0][1]
+            
+            else:
+                if random.random() < 0.2:
+                    s1 = self.pertubacao(bests_S[random.randint(0, len(bests_S)-1)])
+                
+                else:
+                    min = random.random()          
+                    max = random.uniform(min, 1.0) 
+                    s1 = self.vizinhos(bests_S[random.randint(0, len(bests_S)-1)], min, max)
+                    
+            s2 = self.LocSearch(s1,x)
+            
+            sol2 = self.env.decoder(s2)
+            cost = self.env.cost(sol2)
+            
+            
+            if cost <= best_cost:
+                best_cost = cost
+                best_keys = s2
+                
+                bests_S.append(s2)
+                # print(f"ILS {tag} Melhor Custo: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+                with lock:
+                    entry = (best_cost, list(best_keys))
+                       
+                    bisect.insort(pool, entry)  
+                    
+                    if len(pool) > 20:
+                        pool.pop()
+                    if best_cost < best[0]:
+                        best[0] = best_cost
+                        best[1] = list(best_keys)
+                        print(f"ILS {tag} NOVO MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+          
+                if best_cost == self.env.dict_best[self.env.instance_name]:
+                    print(f"ILS {tag} MELHOR: {best_cost} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_cost - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% tempo = {time.time() - start_time}")
+                    print(f"ILS {tag} ENCERRADO")
+                        
+                    solution = self.env.decoder(best_keys)
+                    cost = self.env.cost(solution, True)  
+                        
+                            
+                            
+                    return self.env.bins_usados, best_keys, best_cost
+
+        solution = self.env.decoder(best_keys)
+        cost = self.env.cost(solution, True)  
+        
+            
+        print(f"ILS {tag} ENCERRADO")
+        return self.env.bins_usados, best_keys, best_cost
     
 
         
@@ -366,7 +577,13 @@ class RKO():
         
         
         
-        population = [self.random_keys() for _ in range(pop_size)]
+        population = [self.random_keys() for _ in range(pop_size - 3)]
+        cost,keys = self.env.ssp3()
+        population.append(keys)
+        cost,keys = self.env.greedy_solution_capacity(0)
+        population.append(keys)
+        cost,keys = self.env.greedy_solution_cost(0)
+        population.append(keys)
         best_keys = None
         best_fitness = float('inf')
         
@@ -418,12 +635,24 @@ class RKO():
                     pop = 0
                     best_keys = key
                     best_fitness = fitness
+                    with lock:
+                        entry = (best_fitness, list(best_keys))
+                        # print(entry)
+                        bisect.insort(pool, entry)  
+                        # print(pool.type)     
+                        if len(pool) > 20:
+                            pool.pop()
+                        if best_fitness < best[0]:
+                            best[0] = best_fitness
+                            best[1] = list(best_keys)
+                            print(f"BRKGA {tag} NOVO MELHOR: {best_fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((best_fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
+          
                         
-                    print(f" \nBRKGA {tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
+                    # print(f"BRKGA {tag} Melhor Custo: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
           
                     if fitness == self.env.dict_best[self.env.instance_name]:
-                        # print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
-
+                        print(f" \n{tag} MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}% -  Tempo: {round(time.time() - start_time,2)}s")
+                        print(f"BRKGA {tag} ENCERRADO")
                         
                         solution = self.env.decoder(best_keys)
                         cost = self.env.cost(solution, True)  
@@ -446,19 +675,13 @@ class RKO():
 
             best_local_fitness = fitness_elite[0]
             best_local_keys = elite[0]
-            with lock:
-                entry = (best_local_fitness, list(best_local_keys))
-                # print(entry)
-                bisect.insort(pool, entry)  
-                # print(pool.type)     
-                if len(pool) > 10:
-                    pool.pop()
 
-            with lock:
-                if fitness_elite[0] < best[0]:
-                    best[0] = fitness_elite[0]
-                    best[1] = elite[0]
-                    print(f" \nBRKGA {tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
+
+            # with lock:
+            #     if fitness_elite[0] < best[0]:
+            #         best[0] = fitness_elite[0]
+            #         best[1] = elite[0]
+            #         print(f" \nBRKGA {tag} NOVO MELHOR: {fitness} - BEST:{self.env.dict_best[self.env.instance_name]} - GAP: {round((fitness - self.env.dict_best[self.env.instance_name]) / self.env.dict_best[self.env.instance_name] * 100, 2)}%")
 
 
                         
@@ -470,12 +693,12 @@ class RKO():
 
             while len(new_population) < pop_size:
                 
-                if random.random() < 0.9:
+                if random.random() < 1:
                     parent1 = random.sample(population, 1)[0]
                 else:
                     parent1 = random.sample(list(pool), 1)[0][1]
                     
-                if random.random() < 0.9:
+                if random.random() < 1:
                     parent2 = random.sample(elite, 1)[0]
                 else:
                     parent2 = random.sample(list(pool), 1)[0][1]
@@ -511,35 +734,28 @@ class RKO():
                 
      
             population = new_population
-            print(f"\r{tag} Geração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s")
+            population.pop(0)
+            key_pool = random.sample(list(pool), 1)[0][1]
+            population.append(key_pool)
+            print(f"\rtempo = {round(time.time() - start_time,2)} ", end="")
+
+            # print(f"\r{tag} Geração {generation + 1}: Melhor fitness = {best_fitness}  -  Tempo: {round(time.time() - start_time,2)}s")
             
             
         solution = self.env.decoder(best_keys)
         cost = self.env.cost(solution, True)  
         
             
-        print(qnt)    
+        # print(qnt)
+        print(f"BRKGA {tag} ENCERRADO")    
         return self.env.bins_usados, best_keys, best_fitness
 
-    def solve(self, pop_size, elite_pop, chance_elite, limit_time, n_workers=None):
+    def solve(self, pop_size, elite_pop, chance_elite, limit_time, n_workers=None,brkga=1, ms=1, sa=1, vns=1, ils=1):
         """Roda múltiplas instâncias de BRKGA em paralelo e compartilha apenas best_solution."""
         if n_workers is None:
             n_workers = cpu_count()
 
-        brkga = 0
-        sa = 0
-        ms = 0
-        for i in range(n_workers):
-            tipo = int(input("Escolha o tipo de execução (0 - BRKGA, 1 - SA, 2 - MS): "))
-            if tipo == 0:
-                brkga += 1
-            elif tipo == 1:
-                sa += 1
-            elif tipo == 2:
-                ms += 1
-            else:
-                print("Tipo inválido. Usando BRKGA como padrão.")
-                brkga += 1
+
 
         manager = Manager()
         shared = manager.Namespace()
@@ -561,7 +777,7 @@ class RKO():
         for _ in range(ms):
             p = Process(
                 target=_MS_worker,
-                args=(self.env,10000,1,limit_time, shared, lock,tag)
+                args=(self.env,10000,100,limit_time, shared, lock,tag)
             )
             tag += 1
             processes.append(p)
@@ -570,6 +786,22 @@ class RKO():
             p = Process(
                 target=_SA_worker,
                 args=( limit_time, shared, lock,tag)
+            )
+            tag += 1
+            processes.append(p)
+            p.start()
+        for _ in range(vns):
+            p = Process(
+                target=_VNS_worker,
+                args=(self.env, limit_time,1000, shared, lock,tag)
+            )
+            tag += 1
+            processes.append(p)
+            p.start()
+        for _ in range(ils):
+            p = Process(
+                target=_ILS_worker,
+                args=(self.env, limit_time,1000, shared, lock,tag)
             )
             tag += 1
             processes.append(p)
@@ -601,6 +833,31 @@ def _MS_worker(env, max_itr, x, limit_time, shared, lock,tag):
         if local_best < shared.best_fitness:
             shared.best_fitness = local_best
             shared.best_keys = local_keys
+def _GRASP_worker(env, max_itr, x, limit_time, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.MultiStart( max_itr,x,limit_time,tag,shared.best_pool,lock,shared.best_pair)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
+            
+def _VNS_worker(env, limit_time, x, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.VNS(limit_time,x,tag,shared.best_pool,lock,shared.best_pair)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
+def _ILS_worker(env, limit_time, x, shared, lock,tag):
+    runner = RKO(env)
+    _, local_keys, local_best = runner.ILS(limit_time,x,tag,shared.best_pool,lock,shared.best_pair)
+    
+    with lock:
+        if local_best < shared.best_fitness:
+            shared.best_fitness = local_best
+            shared.best_keys = local_keys
 
 def _SA_worker(env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,tag):
     runner = RKO(env)
@@ -611,7 +868,7 @@ def _SA_worker(env, pop_size, elite_pop, chance_elite, limit_time, shared, lock,
             shared.best_fitness = local_best
             shared.best_keys = local_keys
       
-instances_conc = reversed(instances_conc)  
+# instances_conc = reversed(instances_conc)  
 if __name__ == "__main__":
     agora = datetime.datetime.now()
     nome_arquivo = agora.strftime("resultados_%Y-%m-%d_%H-%M-%S.txt")
@@ -619,13 +876,67 @@ if __name__ == "__main__":
 
     import csv
     from datetime import datetime
-    instancias = [instances_conc,instances_prob, instances_slin,    instances_conv ]
+    # instances_prob,
+    instancias = [ instances_slin[6:],    instances_conv, instances_conc ]
+    # instancias = reversed(instancias)
+    # set1 = 0
+    # set2 = 0
+    # set3 = 0
+    # set4 = 0
+    # for instance in instancias:
+    #     with open(f"resultados_greedy_{instance[0]}.csv", "w", newline='') as f_csv:
+    #         for ins in instance:
+    #             env = VSBPP(ins, dicionario_best)
+    #             cost,keys = env.ssp3()
+    #             sol = env.decoder(keys)
+    #             new_cost = env.cost(sol)
+    #             # print(cost,new_cost)
+    #             if new_cost == cost:
+    #                 if ins in instances_prob:
+    #                     set1 += 1
+    #                 elif ins in instances_slin:
+    #                     set2 += 1
+    #                 elif ins in instances_conc:
+    #                     set3 += 1
+    #                 elif ins in instances_conv:
+    #                     set4 += 1
+    #                 # print("Deu bom")
+    #             f_csv.write(f'{ins}, {int(round(cost,0))}, {dicionario_best[ins]}, {round((cost - dicionario_best[ins]) / dicionario_best[ins] * 100, 2)} \n')
+    #             f_csv.flush()
+                
+    # print(f"Set 1: {set1} de {len(instances_prob)}")
+    # print(f"Set 2: {set2} de {len(instances_slin)}")
+    # print(f"Set 3: {set3} de {len(instances_conc)}")
+    # print(f"Set 4: {set4} de {len(instances_conv)}")
+    
+    brkga = 0
+    sa = 0
+    ms = 0
+    vns = 0
+    ils = 0
+    for i in range(6):
+        tipo = int(input(f"Selecione o tipo de algoritmo {i+1} (0: BRKGA, 1: SA, 2: MS, 3: VNS, 4: ILS): "))
+        if tipo == 0:
+            brkga += 1
+        elif tipo == 1:
+            sa += 1
+        elif tipo == 2:
+            ms += 1
+        elif tipo == 3:
+            vns += 1
+        elif tipo == 4:
+            ils += 1
+        else:
+            print("Tipo inválido. Usando BRKGA como padrão.")
+            brkga += 1
+                
     with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
         writer_csv = csv.writer(f_csv)
         writer_csv.writerow(["Instancia",  "BRKGA", "BEST", "GAP"])  # cabeçalho do CSV
 
         for instance in instancias:
             for ins in instance:
+                print(f"\nInstancia: {ins} - Best: {dicionario_best[ins]}\n")
                 env = VSBPP(ins, dicionario_best)
                 best = dicionario_best[ins]
             
@@ -640,11 +951,16 @@ if __name__ == "__main__":
                 for i in range(3):
                     solver = RKO(env)
                     out = solver.solve(
-                        pop_size=int(100),
-                        elite_pop=0.3 ,
+                        pop_size=int(500),
+                        elite_pop=0.05 ,
                         chance_elite=0.7,
                         limit_time=150,       
-                        n_workers=6)
+                        n_workers=6,
+                        brkga=brkga,
+                        ms=ms,
+                        sa=sa,
+                        vns=vns,
+                        ils=ils)
                     
                     resultados_brk.append(out[1])
                     f_txt.write(f"Resultado BRKGA {i+1}: {out[1]} {out[0]}\n")
