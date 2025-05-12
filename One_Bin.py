@@ -12,7 +12,7 @@ from botao import Botao
 from nfp_teste import combinar_poligonos, triangulate_shapely,NoFitPolygon, interpolar_pontos_poligono
 import shapely
 from shapely import Polygon, MultiPolygon, unary_union, LineString, MultiLineString, MultiPoint, LinearRing, GeometryCollection
-
+import re
 from scipy.spatial import ConvexHull
 import numpy as np
 import cv2
@@ -258,40 +258,51 @@ def NFP(PecaA,grauA,PecaB,grauB):
     #print(nfp_final)
 
     return nfp_final
-def ler_ins(caminho_arquivo):
-    with open(caminho_arquivo, 'r') as f:
-        linhas = f.readlines()
-
-    idx = 0
-
-    # 1. Ler número de itens e número de tamanhos de bin
-    n_itens, n_bins = map(int, linhas[idx + 1].split())
-    idx += 2
-
-    # 2. Ignorar RELATIVE/ABSOLUTE instance number
-    idx += 1
-
-    # 3. Ler tamanhos dos bins (altura e largura de cada)
-    valores = list(map(int, linhas[idx].split()))
-    hbins = valores[:n_bins]
-    wbins = valores[n_bins:2 * n_bins]
-    idx += 1
-
-    # 4. Ler lucro dos bins
-    lucros_bins = list(map(int, linhas[idx].split()))
-    idx += 1
-
-    # 5. Ler dimensões das peças
+def ler_ins(path_arquivo):
+    """
+    Lê um arquivo de problema de bin packing no formato padrão e retorna:
+    
+    Returns:
+        bins: [((h, w), lucro), …]
+        pecas: [{'h': h, 'w': w, 'coords': [(0,0),(w,0),(w,h),(0,h)]}, …]
+    """
+    with open(path_arquivo, 'r') as f:
+        lines = [ln.strip() for ln in f.readlines()]
+    
+    # Linha 1: número de itens e de bins
+    parts = re.findall(r'\d+', lines[1])
+    if len(parts) < 2:
+        raise ValueError("Não achei nº de itens e bins na linha 1")
+    n_items, n_bins = map(int, parts[:2])
+    
+    # Linha 3: dimensões dos bins (2*n_bins números)
+    dims = list(map(int, re.findall(r'\d+', lines[3])))
+    if len(dims) < 2 * n_bins:
+        raise ValueError(f"Esperava {2*n_bins} números em linha 3, achei {len(dims)}")
+    # agrupa de dois em dois: (h, w)
+    pares_bins = [(dims[i], dims[i+1]) for i in range(0, 2*n_bins, 2)]
+    
+    # Linha 4: lucro de cada bin (n_bins números)
+    profits = list(map(int, re.findall(r'\d+', lines[4])))
+    if len(profits) < n_bins:
+        raise ValueError(f"Esperava {n_bins} lucros na linha 4, achei {len(profits)}")
+    
+    # monta lista de bins: [((h, w), lucro), …]
+    bins = [[[h, w], lucro] for (h, w), lucro in zip(pares_bins, profits)]
+    
+    # Linhas 5 a 5+n_items-1: cada uma com um par h, w da peça
     pecas = []
-    while len(pecas) < n_itens:
-        linha = list(map(int, linhas[idx].split()))
-        for i in range(0, len(linha), 2):
-            h, w = linha[i:i+2]
-            coordenadas = [(0, 0), (w, 0), (w, h), (0, h)]  # Retângulo em coordenadas
-            pecas.append(coordenadas)
-        idx += 1
-
-    return [((h, w), lucro) for h, w, lucro in zip(hbins, wbins, lucros_bins)], pecas
+    for idx in range(5, 5 + n_items):
+        if idx >= len(lines):
+            raise ValueError(f"Arquivo terminou antes de ler todas as {n_items} peças")
+        nums = re.findall(r'\d+', lines[idx])
+        if len(nums) < 2:
+            raise ValueError(f"Esperava H e W na linha {idx}, achei: {lines[idx]!r}")
+        h, w = map(int, nums[:2])
+        coords = [(0,0), (w,0), (w,h), (0,h)]
+        pecas.append(coords)
+    
+    return pecas
 class CSP():
     def __init__(self,dataset='fu',Base=None,Altura=None,Escala=None,render=False,plot=True, x=-200, y=200, suavizar = True, pre_processar = False, tabela = None, margem = 5, ajuste = False):
         # self.graus = [0,1,2,3]
@@ -312,7 +323,13 @@ class CSP():
             else:
                 self.base = Base
                 self.altura = Altura
-                self.Escala = 1
+                if Escala == None:
+                    self.Escala = 1
+                else:
+                    self.Escala = Escala
+                    self.base = self.base * self.Escala
+                    self.altura = self.altura * self.Escala    
+
                 suavizar = False
         else:
             self.instancias()
@@ -356,7 +373,7 @@ class CSP():
 
         
         self.lista, self.nova_lista, self.nova_lista_completa = copy.deepcopy(self.lista_original), copy.deepcopy(self.nova_lista_original), copy.deepcopy(self.nova_lista_completa_original)
-        
+        # print(self.lista_original)
         if pre_processar:
             self.tabela_nfps = pre_processar_NFP([0,1,2,3], self.nova_lista, margem)
         else:
@@ -581,6 +598,7 @@ class CSP():
 
 
         nfp = self.nfp(peca, grau_indice, inter)
+        # print(len(nfp))
         nfp = sorted(nfp, key=lambda ponto: (ponto[0], ponto[1]))
 
         for i,j in nfp:     
@@ -594,34 +612,25 @@ class CSP():
                         round(y_t + rotate_point(cor[0], cor[1], grau)[1])) 
                         for cor in pol_posicionar]
 
-                # Verifica se a posição é válida
-                posicao_valida = True
-                for x1, y1 in pontos:
-                    if y1 > self.y:
-                        posicao_valida = False
-                        break
-                    if x1 < self.cordenadas_area[0][0] or x1 > self.cordenadas_area[1][0] or y1 > self.cordenadas_area[0][1] or y1 < self.cordenadas_area[2][1]:
-                        posicao_valida = False
-                if nfp and ponto_dentro_poligono(x_t, y_t, nfp, False):
-                    posicao_valida = False
 
-                if posicao_valida:
-                    pecas_posicionadas = copy.deepcopy(self.pecas_posicionadas)
-                    pecas_posicionadas.append(pontos)
 
-                    area_ocupada = calcular_area_preenchida(pecas_posicionadas)
-                    area_FC = calcular_fecho_area(pecas_posicionadas)
-                    area_FR = area_fecho_retangular(pecas_posicionadas)
+                
+                pecas_posicionadas = copy.deepcopy(self.pecas_posicionadas)
+                pecas_posicionadas.append(pontos)
 
-                    fecho_convexo_max = area_ocupada/area_FC
-                    fecho_retangular_max = area_ocupada/area_FR
+                area_ocupada = calcular_area_preenchida(pecas_posicionadas)
+                area_FC = calcular_fecho_area(pecas_posicionadas)
+                area_FR = area_fecho_retangular(pecas_posicionadas)
 
-                    possiveis_posicoes.append([peca, x_t, y_t, grau_indice, flip, 
-                                            round(fecho_convexo_max,2), 
-                                            round(fecho_convexo_max,2), 
-                                            self.lista[peca]])
-                    # Retorna a primeira posição válida encontrada
-                    return possiveis_posicoes[0]
+                fecho_convexo_max = area_ocupada/area_FC
+                fecho_retangular_max = area_ocupada/area_FR
+
+                possiveis_posicoes.append([peca, x_t, y_t, grau_indice, flip, 
+                                        round(fecho_convexo_max,2), 
+                                        round(fecho_convexo_max,2), 
+                                        self.lista[peca]])
+                # Retorna a primeira posição válida encontrada
+                return possiveis_posicoes[0]
 
         return None
     def nfp(self, peca, grau_indice, inter = 0, proj = False, area = False, bin = False):
@@ -722,11 +731,22 @@ class CSP():
 
     def ifp(self, peca, bin = False):
         if not bin:
+
+            maxx_p = max([x for x,y in peca])
+            maxy_p = max([y for x,y in peca])
+
+            minx_p = min([x for x,y in peca])
+            miny_p = min([y for x,y in peca])
+
+
             maxx = max([x for x,y in peca])
             maxy = max([y for x,y in peca])
 
             minx = min([x for x,y in peca])
             miny = min([y for x,y in peca])
+
+            if (maxx_p - minx_p) > self.base or (maxy_p - miny_p) > self.altura:
+                return []
 
             cords = self.cordenadas_area
 
