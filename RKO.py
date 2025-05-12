@@ -876,8 +876,8 @@ if __name__ == "__main__":
 
     import csv
     from datetime import datetime
-    # instances_prob,
-    instancias = [ instances_slin[6:],    instances_conv, instances_conc ]
+    # instances_prob,instances_slin[6:],   
+    instancias = [   instances_conc[7:  ] ]
     # instancias = reversed(instancias)
     # set1 = 0
     # set2 = 0
