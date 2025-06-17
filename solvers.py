@@ -459,7 +459,7 @@ from datetime import datetime
 instancias = [instances_prob, instances_slin, instances_conc,   instances_conv ]
 with open(nome_arquivo, "w") as f_txt, open("resultados.csv", "w", newline='') as f_csv:
     writer_csv = csv.writer(f_csv)
-    writer_csv.writerow(["Instancia",  "BRKGA", "BEST", "GAP"])  # cabeçalho do CSV
+    writer_csv.writerow(["Instancia",  "RKO", "BEST", "GAP"])  # cabeçalho do CSV
 
     for instance in instancias:
         for ins in instance:

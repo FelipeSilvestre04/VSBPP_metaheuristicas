@@ -2,6 +2,7 @@ import os
 import numpy as np
 import random
 import copy
+import time
 
 CAPACITY = 0
 COST = 1
@@ -47,6 +48,9 @@ def read_instance(path):
 class VSBPP:
     def __init__(self, instance_name, dict_best = None):
         self.dict_best = dict_best
+        self.LS_type = 'Best'
+        self.max_time = 150
+        self.start_time = time.time()
         
         self.instance_name = instance_name
         
@@ -56,7 +60,7 @@ class VSBPP:
         full_path = path + "\Datasets" + "\VSBPP\\" + instance_name 
 
 
-        
+        self.k = 0
       
 
         pieces, bins = read_instance(full_path) # pieces = lista de itens, representados pelo se peso || bins = lista de bins, representados por uma lista de tuplas (valor, capacidade)
@@ -68,6 +72,7 @@ class VSBPP:
         self.__MAX_BINS = self.__NUM_PIECES
         self.__pieces = pieces
         self.__bins = bins
+        self.greedy = []
         
         self.tam_solution = 2*self.__NUM_PIECES 
         
@@ -330,6 +335,7 @@ class VSBPP:
         solution = sequence_pieces + type_bins
         return solution       
     def cost(self, solution: list[int], final = False):
+        self.k += 1
         total_cost = 0       
         bins = []
         
@@ -375,6 +381,7 @@ class VSBPP:
         if final:    
             # print(bins)
             self.bins_usados = bins
+        # print(self.k, total_cost)
         return total_cost
     
     def tipo_bin(self, key):

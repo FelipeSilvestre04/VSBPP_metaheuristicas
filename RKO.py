@@ -7,6 +7,8 @@ from vsbpp import VSBPP
 import math
 import datetime
 import bisect
+import sys
+from RKO_v2 import RKO as RKO_v2
 from multiprocessing import Manager, Process, cpu_count
 
 
@@ -897,8 +899,8 @@ if __name__ == "__main__":
 
     import csv
     from datetime import datetime
-    # instances_prob,
-    instancias = [ instances_slin[6:],    instances_conv, instances_conc ]
+    # 
+    instancias = [ instances_prob,instances_slin,    instances_conv, instances_conc ]
     # instancias = reversed(instancias)
     # set1 = 0
     # set2 = 0
@@ -935,7 +937,7 @@ if __name__ == "__main__":
     ms = 0
     vns = 0
     ils = 0
-    for i in range(6):
+    for i in range(1):
         tipo = int(input(f"Selecione o tipo de algoritmo {i+1} (0: BRKGA, 1: SA, 2: MS, 3: VNS, 4: ILS): "))
         if tipo == 0:
             brkga += 1
@@ -970,13 +972,13 @@ if __name__ == "__main__":
                 resultados_brk = []
                 resultados_sa = []
                 for i in range(3):
-                    solver = RKO(env)
+                    solver = RKO_v2(env)
                     out = solver.solve(
                         pop_size=int(500),
                         elite_pop=0.05 ,
                         chance_elite=0.7,
                         limit_time=150,       
-                        n_workers=6,
+                        n_workers=1,
                         brkga=brkga,
                         ms=ms,
                         sa=sa,
