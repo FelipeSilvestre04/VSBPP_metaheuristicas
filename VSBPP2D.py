@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle, Polygon as MPolygon
 from RKO import RKO
 import math
+from shapely import Polygon
 
 
 CAPACITY = 0
@@ -133,9 +134,118 @@ class VSBPP_2D():
  
 
 
+    def greedy_solution(self, type=0):
+        
+        if type == 0:
+            pieces = copy.deepcopy(self.__pieces)
+            bins_type = []
+            pieces.sort(key=lambda x: Polygon(x).area, reverse=True)
+            
+            bins = []
+            total_cost = 0  
+            for peca in pieces:
+                
+                bins_possiveis = []
+                
+                for bin in bins:
+                    for grau in [0,1]:
+                        peca_idx = bin.lista.index(peca) 
+                        nfp = bin.nfp(peca_idx, grau)
+                    
+                        if len(nfp) > 0:  
+                            bins_possiveis.append([bin,grau])
+                    
+                if len(bins_possiveis) > 0:  
+                    melhor_ratio = 0
+                    melhor_bin = None
+                    for bin in bins_possiveis:  
+                        ratio = bin[0].area_usada() + (Polygon(peca).area/bin[0].area)
+                        if ratio > melhor_ratio:
+                            peca_idx = bin[0].lista.index(peca)
+                            melhor_ratio = ratio
+                            melhor_bin = bin  
+                                
+                    index = bins.index(melhor_bin[0])
+                    bins[index].posicionar(bins[index].BLF(peca_idx, melhor_bin[1]))
+                else:
+                    idx,grau,key = self.best_bin( peca)
+                    bins_type.append(key)
+                    bin_size = self.__bins[idx]
+                    
+                    bin = CSP(self.ins, bin_size[0][0], bin_size[0][1], Escala=1, render=False, plot=False, tabela=self.nfps, margem=0)
+                    peca_idx = bin.lista.index(peca)
+                    # nfp = bin.nfp(peca_idx, 0)
+                    # print(len(nfp))
+                    pos = bin.BLF(peca_idx, grau)
+                    # print("Pos: ", pos)
+                    bin.posicionar(pos)
+                    # bin.click()
+                    bins.append(bin) 
 
+                    total_cost += bin_size[1]
+                    
+            keys = self.encoder(pieces, bins_type)
+            print([bin.area_usada() for bin in bins], total_cost)
+            return keys
+        elif type ==1:
+            pieces = copy.deepcopy(self.__pieces)
+            pieces.sort(key=lambda x: Polygon(x).area, reverse=True)
+            
+            bins = []
+            total_cost = 0  
+            for peca in pieces:
+                
+                bins_possiveis = []
+                
+                for bin in bins:
+                    for grau in [0,1]:
+                        peca_idx = bin.lista.index(peca) 
+                        nfp = bin.nfp(peca_idx, grau)
+                    
+                        if len(nfp) > 0:  
+                            bins_possiveis.append([bin,grau])
+                    
+                if len(bins_possiveis) > 0:  
+                    melhor_ratio = 0
+                    melhor_bin = None
+                    for bin in bins_possiveis:  
+                        ratio = bin[0].area_usada() + (Polygon(peca).area/bin[0].area)
+                        if ratio > melhor_ratio:
+                            peca_idx = bin[0].lista.index(peca)
+                            melhor_ratio = ratio
+                            melhor_bin = bin  
+                                
+                    index = bins.index(melhor_bin[0])
+                    bins[index].posicionar(bins[index].BLF(peca_idx, melhor_bin[1]))
+                else:
+                    idx,grau = self.best_bin_2( peca)
+                    bins_type.append((idx,grau))
+                    bin_size = self.__bins[idx]
+                    
+                    bin = CSP(self.ins, bin_size[0][0], bin_size[0][1], Escala=1, render=False, plot=False, tabela=self.nfps, margem=0)
+                    peca_idx = bin.lista.index(peca)
+                    # nfp = bin.nfp(peca_idx, 0)
+                    # print(len(nfp))
+                    pos = bin.BLF(peca_idx, grau)
+                    # print("Pos: ", pos)
+                    bin.posicionar(pos)
+                    # bin.click()
+                    bins.append(bin) 
 
+                    total_cost += bin_size[1]
+                    
+            print([bin.area_usada() for bin in bins], total_cost)
 
+    def encoder(self, pieces, bins):
+        keys = []
+        for piece in pieces:
+            key = self.__pieces.index(piece)/self.__NUM_PIECES
+            keys.append(key)
+        
+        keys = keys + bins
+        for i in range(self.tam_solution - len(keys)):
+            keys.append(np.random.rand())
+        return keys
     def decoder(self, keys):   
         piece_keys = keys[:self.__NUM_PIECES]  
         bin_keys = keys[self.__NUM_PIECES:]  
@@ -202,7 +312,7 @@ class VSBPP_2D():
            
         if final:    
 
-            print([bin.area_usada() for bin in bins])   
+            print([bin.area_usada() for bin in bins], total_cost)   
             self.bins_usados = bins
         # print(len(bins), total_cost)
         i = 0
@@ -211,6 +321,7 @@ class VSBPP_2D():
         #     # print(bin.area_usada())
         #     draw_cutting_area(bin.pecas_posicionadas, bin.base, bin.altura, filename=self.ins + f"_{i}.png")
         return total_cost
+    
     def _compute_lower_bounds(self):
         pieces = self.__pieces               # lista de peças: cada peça é [(w,h), ...]?
         bins    = self.__bins                 # lista de bins: cada bin é ((W,H), cost)
@@ -258,6 +369,44 @@ class VSBPP_2D():
                 break    
         return bin
     
+    def best_bin(self, peca):
+        area_peca = max([x for x,y in peca]) * max([y for x,y in peca])
+        bins_possiveis = []
+        for bin_size in self.__bins:
+            for grau in [0,1]:
+        
+                bin = CSP(self.ins, bin_size[0][0], bin_size[0][1], Escala=1, render=False,plot=False, tabela=self.nfps, margem=0)
+
+                peca_idx = bin.lista.index(peca) 
+                nfp = bin.nfp(peca_idx,grau)
+            # print(len(nfp))
+                if len(nfp) > 0: 
+                    bins_possiveis.append([bin_size,grau,bin_size[1]])
+                    
+            
+                
+            
+     
+
+        
+        idx = bins_possiveis.index(min(bins_possiveis, key=lambda x: x[2]))
+        return self.__bins.index(bins_possiveis[idx][0]), bins_possiveis[idx][1], idx/len(bins_possiveis)
+    
+    def best_bin_2(self, peca):
+        area_peca = max([x for x,y in peca]) * max([y for x,y in peca])
+        bins_possiveis = []
+        for bin_size in self.__bins:
+            for grau in [0,1]:
+        
+                bin = CSP(self.ins, bin_size[0][0], bin_size[0][1], Escala=1, render=False,plot=False, tabela=self.nfps, margem=0)
+
+                peca_idx = bin.lista.index(peca) 
+                nfp = bin.nfp(peca_idx,grau)
+            # print(len(nfp))
+                if len(nfp) > 0: 
+                    bins_possiveis.append([bin_size,grau,bin_size[0][0]*bin_size[0][1]])
+        idx = bins_possiveis.index(max(bins_possiveis, key=lambda x: x[2]))
+        return self.__bins.index(bins_possiveis[idx][0]), bins_possiveis[idx][1]
     def key_to_bin(self, key, peca):
         area_peca = max([x for x,y in peca]) * max([y for x,y in peca])
         bins_possiveis = []
@@ -285,17 +434,22 @@ if __name__ == "__main__":
     # print(ins[0][0][0][0], ins[0][0][0][1])
     # env = CSP(arquivos_bpp[0], ins[0][-1][0][0], ins[0][-1][0][1], Escala=50, render=True, pre_processar=True, margem=0)
     # env.click()
-    env = VSBPP_2D(arquivos_bpp[0])
-    k = 0
-    start_time = time.time()
-    while time.time() - start_time < 600:
-        keys = np.random.rand(env.tam_solution)  # Chave aleatória para teste
-        sol = env.decoder(keys)
-        env.cost(sol)
-        k+=1
-        print(k, time.time() - start_time)
+    # for i in range(len(arquivos_bpp)):
+    #     env = VSBPP_2D(arquivos_bpp[i])
+    #     keys = env.greedy_solution(0)
+    #     # print("Chave: ", keys)
+    #     # env.gre(1)
+    #     env.cost(env.decoder(keys), True)
+    # k = 0
+    # start_time = time.time()
+    # while time.time() - start_time < 600:
+    #     keys = np.random.rand(env.tam_solution)  # Chave aleatória para teste
+    #     sol = env.decoder(keys)
+    #     env.cost(sol,   True)
+    #     k+=1
+    #     print(k, time.time() - start_time)
     
-    print(k)
+    # print(k)
 
 
     brkga = 0
